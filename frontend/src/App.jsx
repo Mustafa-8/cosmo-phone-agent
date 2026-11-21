@@ -3,31 +3,34 @@ import './App.css'
 
 const languages = [
   { code: 'en', name: 'English' },
-  { code: 'hu', name: 'Hungarian' },
-  { code: 'de', name: 'German' },
-  { code: 'fr', name: 'French' },
-  { code: 'ro', name: 'Romanian' },
-  { code: 'uk', name: 'Ukrainian' },
 ]
 
 const simulatedReplies = [
   {
-    speaker: 'Receptionist',
+    speaker: 'receptionist',
     language: 'Hungarian',
-    spoken: 'Jó napot! Melyik nap lenne megfelelő?',
-    translation: 'Good afternoon! Which day would work for you?',
+    original_text: 'Jó napot! Melyik nap lenne megfelelő?',
+    translated_text: 'Good afternoon! Which day would work for you?',
   },
   {
-    speaker: 'COSMO',
+    speaker: 'agent',
+    to: 'receptionist',
     language: 'Hungarian',
-    spoken: 'A jövő hét kedd délután megfelelő lenne.',
-    translation: 'Next Tuesday afternoon would work.',
+    original_text: 'A jövő hét kedd délután megfelelő lenne.',
+    translated_text: 'Next Tuesday afternoon would work.',
   },
   {
-    speaker: 'Receptionist',
+    speaker: 'receptionist',
     language: 'Hungarian',
-    spoken: 'Van szabad időpontunk kedden 15 órakor.',
-    translation: 'We have an available appointment on Tuesday at 3:00 PM.',
+    original_text: 'Van szabad időpontunk kedden 15 órakor.',
+    translated_text: 'We have an available appointment on Tuesday at 3:00 PM.',
+  },
+  {
+    speaker: 'agent',
+    to: 'patient',
+    language: 'English',
+    original_text: 'Your dentist appointment is confirmed for Tuesday at 3:00 PM at Budapest Dental Clinic.',
+    translated_text: '',
   },
 ]
 
@@ -80,6 +83,7 @@ function LanguageSelect({ id, label, value, onChange }) {
 }
 
 function App() {
+  const [fullName, setFullName] = useState('')
   const [request, setRequest] = useState('I need a dentist appointment next week, in the afternoon.')
   const [studentLanguage, setStudentLanguage] = useState('en')
   const [clinicLanguage, setClinicLanguage] = useState('hu')
@@ -93,31 +97,33 @@ function App() {
 
   function startDemoCall(event) {
     event.preventDefault()
-    if (!request.trim()) return
+    if (!fullName.trim() || !request.trim()) return
 
     setCallState('active')
     setReplyIndex(-1)
     setMessages([
       {
         id: 1,
-        speaker: 'Your request',
-        language: languages.find((language) => language.code === studentLanguage)?.name ?? 'English',
-        spoken: request.trim(),
-        translation: '',
+        speaker: 'patient',
+        full_name: fullName.trim(),
+        language: 'English',
+        original_text: request.trim(),
+        translated_text: '',
       },
       {
         id: 2,
-        speaker: 'COSMO',
+        speaker: 'agent',
+        to: 'receptionist',
         language: 'Hungarian',
-        spoken: 'Jó napot, a COSMO vagyok, egy AI-asszisztens. Egy diák nevében telefonálok időpontfoglalás miatt.',
-        translation: 'Hello, I am COSMO, an AI assistant calling on behalf of a student to book an appointment.',
+        original_text: 'Jó napot, a COSMO vagyok, egy AI-asszisztens. Egy diák nevében telefonálok időpontfoglalás miatt.',
+        translated_text: 'Hello, I am COSMO, an AI assistant calling on behalf of a student to book an appointment.',
       },
       {
         id: 3,
-        speaker: 'Receptionist',
+        speaker: 'receptionist',
         language: 'Hungarian',
-        spoken: 'Jó napot! Miben segíthetek?',
-        translation: 'Good afternoon! How can I help you?',
+        original_text: 'Jó napot! Miben segíthetek?',
+        translated_text: 'Good afternoon! How can I help you?',
       },
     ])
   }
@@ -125,7 +131,11 @@ function App() {
   function addSimulatedReply() {
     const nextIndex = (replyIndex + 1) % simulatedReplies.length
     const reply = simulatedReplies[nextIndex]
-    setMessages((current) => [...current, { ...reply, id: Date.now() }])
+    setMessages((current) => [...current, {
+      ...reply,
+      id: Date.now(),
+      ...(reply.to === 'patient' ? { full_name: fullName.trim() } : {}),
+    }])
     setReplyIndex(nextIndex)
   }
 
@@ -178,6 +188,18 @@ function App() {
             </div>
 
             <form onSubmit={startDemoCall}>
+              <label className="field-label" htmlFor="full-name">Your full name</label>
+              <input
+                id="full-name"
+                name="full_name"
+                type="text"
+                autoComplete="name"
+                value={fullName}
+                onChange={(event) => setFullName(event.target.value)}
+                placeholder="Enter your first and last name"
+                required
+                disabled={isCallActive}
+              />
               <label className="field-label" htmlFor="appointment-request">Your appointment request</label>
               <textarea
                 id="appointment-request"
@@ -200,7 +222,7 @@ function App() {
               </div>
 
               {!isCallActive && (
-                <button className="primary-button" type="submit" disabled={!request.trim()}>
+                <button className="primary-button" type="submit" disabled={!fullName.trim() || !request.trim()}>
                   <Icon name="phone" size={17} />
                   {callState === 'ended' ? 'Start another demo call' : 'Start demo call'}
                   <Icon name="arrow" size={16} />
@@ -243,13 +265,33 @@ function App() {
                   {callState === 'ended' && <button className="text-button" type="button" onClick={resetCall}>Reset demo</button>}
                 </div>
               ) : (
-                messages.map((message) => (
-                  <article className={`message message--${message.speaker === 'COSMO' ? 'cosmo' : 'receptionist'}`} key={message.id}>
-                    <div className="message-heading"><strong>{message.speaker}</strong><span>{message.language}</span></div>
-                    <p className="message-original">{message.spoken}</p>
-                    {message.translation && <p className="message-translation"><Icon name="check" size={13} />{message.translation}</p>}
-                  </article>
-                ))
+                messages.map((message) => {
+                  const style = message.speaker === 'patient'
+                    ? 'patient'
+                    : message.speaker === 'receptionist'
+                      ? 'receptionist'
+                      : message.to === 'patient'
+                        ? 'agent-patient'
+                        : 'agent-receptionist'
+                  const speakerLabel = message.speaker === 'patient'
+                    ? `${message.full_name} · Patient`
+                    : message.speaker === 'receptionist'
+                      ? 'Receptionist'
+                      : message.to === 'patient'
+                        ? 'COSMO · Update for you'
+                        : 'COSMO · Clinic call'
+
+                  return (
+                    <article className={`message message--${style}`} key={message.id}>
+                      <div className="message-heading">
+                        <strong>{speakerLabel}</strong>
+                        <span>{message.to === 'patient' ? 'English update' : message.language}</span>
+                      </div>
+                      <p className="message-original">{message.original_text}</p>
+                      {message.translated_text && <p className="message-translation"><Icon name="check" size={13} />{message.translated_text}</p>}
+                    </article>
+                  )
+                })
               )}
             </div>
 

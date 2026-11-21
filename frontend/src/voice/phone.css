@@ -59,3 +59,40 @@
 .phone-type { display: flex; gap: 8px; }
 .phone-type input { flex: 1; }
 .phone-type button { padding: 0 16px; border-radius: 10px; border: 0; background: var(--ph-muted); color: #fff; }
+.phone-hint { margin: 0; font-size: 1rem; line-height: 1.4; }
+.phone-newcall { align-self: flex-end; margin: 0 16px; }
+
+/* Call screen */
+.call-stage { flex: 1; display: flex; flex-direction: column; align-items: center; text-align: center;
+  padding: 32px 16px 12px; gap: 6px; overflow-y: auto; }
+.call-avatar { width: 112px; height: 112px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--ph-accent); color: #fff; font-size: 3rem; font-weight: 700; margin-bottom: 8px;
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--ph-accent) 50%, transparent); }
+.phone-call--receptionist .call-avatar { background: var(--ph-accent-2); }
+.call-avatar--speaking { animation: call-wave 1.1s ease-out infinite; }
+.call-avatar--thinking { opacity: 0.7; }
+.call-avatar--ringing { animation: call-ring 0.9s ease-in-out infinite; }
+@keyframes call-wave { to { box-shadow: 0 0 0 22px transparent; } }
+@keyframes call-ring { 0%, 100% { transform: rotate(0); } 25% { transform: rotate(-8deg); } 75% { transform: rotate(8deg); } }
+@media (prefers-reduced-motion: reduce) { .call-avatar--speaking, .call-avatar--ringing { animation: none; } }
+.call-stage h2 { margin: 0; font-size: 1.6rem; }
+.call-sub { margin: 0; color: var(--ph-muted); font-variant-numeric: tabular-nums; }
+.call-intro { display: flex; flex-direction: column; gap: 10px; margin-top: 18px; max-width: 420px; }
+.call-intro p { margin: 0; line-height: 1.4; }
+.call-example { color: var(--ph-muted); font-style: italic; }
+.call-status { margin: 18px 0 0; font-weight: 600; min-height: 1.4em; overflow-wrap: anywhere; }
+.call-wait { margin: 0; color: var(--ph-muted); font-size: 0.9rem; }
+.call-caption { margin: 18px 0 0; padding: 14px 16px; border-radius: 16px; background: var(--ph-agent);
+  font-size: 1.15rem; line-height: 1.4; max-width: 460px; overflow-wrap: anywhere; }
+.call-mine { margin: 6px 0 0; color: var(--ph-muted); font-size: 0.9rem; overflow-wrap: anywhere; }
+.call-controls { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 14px;
+  padding: 16px 16px calc(16px + env(safe-area-inset-bottom)); }
+.call-btn { border: 0; border-radius: 999px; padding: 18px 26px; font-size: 1.05rem; font-weight: 700;
+  cursor: pointer; display: inline-flex; gap: 8px; align-items: center; color: #fff; }
+.call-btn:disabled { opacity: 0.5; cursor: default; }
+.call-btn--green { background: #1e9e55; min-width: 220px; justify-content: center; }
+.call-btn--red { background: #d93025; min-width: 140px; justify-content: center; }
+.call-btn--round { background: color-mix(in srgb, var(--ph-muted) 35%, var(--ph-card)); color: var(--ph-text); }
+.call-btn--on { background: var(--ph-text); color: var(--ph-bg); }
+.call-controls .phone-link { flex-basis: 100%; }
+.phone-call .phone-messages { flex: 0 1 40%; border-top: 1px solid color-mix(in srgb, var(--ph-muted) 30%, transparent); }

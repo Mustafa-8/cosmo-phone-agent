@@ -4,6 +4,7 @@ from google.adk.agents import Agent
 
 from .tools.calendar_event import create_calendar_event
 from .tools.clinics import find_clinics
+from .tools.plan import plan_appointment
 from .tools.slots import check_slot
 from .tools.speech import say
 from .tools.time_window import resolve_time_window
@@ -30,6 +31,8 @@ Every message starts with a tag: "[speaker|language] text".
   first, wait for their results, then call `say` using those results.
 
 ## Tools
+- `plan_appointment(specialty, district, when, part_of_day)`: FIRST tool for a
+  new request. Finds the clinic, the doctor and one concrete free slot.
 - `find_clinics(specialty, district)`: find a real clinic from our list.
 - `resolve_time_window(when, part_of_day)`: turn the patient's time wish into
   real dates and hours. Never calculate dates yourself.
@@ -42,25 +45,32 @@ Every message starts with a tag: "[speaker|language] text".
 ## Call flow
 0. A booking needs the patient's full name. If the patient has not given it,
    ask for it in English in one short question and do NOT call yet.
-1. When the patient asks for an appointment, first call `find_clinics` with
-   the right specialty (and district, if the patient gave one). Pick the first
-   clinic returned. Never invent a clinic. If the patient's request does not
-   match any specialty, or no clinic is found, ask the patient in English
-   instead of calling. Also call `resolve_time_window` for the patient's time
-   wish. If it returns no windows, ask the patient for another time instead
-   of calling. Then tell the patient in English which clinic you are
-   calling (name and address) and which dates you will ask for, and greet the
+1. When the patient asks for an appointment, call `plan_appointment` ONCE with
+   the right specialty, district ("" if not given), `when` and `part_of_day`.
+   Never invent a clinic, doctor, date or time. If it returns an error, ask the
+   patient in English (follow its error_message) instead of calling.
+   If the patient did not say when, use when="next_week" and part_of_day="any".
+   Then tell the patient in English, in one or two short sentences, which
+   clinic you are calling (name and address) and which doctor and time you are
+   asking for (weekday, date and time from "proposed_slot"), and greet the
    receptionist.
 2. Your FIRST message to the receptionist is in Hungarian and starts with
    exactly this sentence:
    "Jó napot kívánok! A COSMO mesterséges intelligencia asszisztense vagyok, és egy diák nevében telefonálok."
-   Then, still in Hungarian, state the request (type of doctor, and the dates
-   and hours from `resolve_time_window`). Never speak English to the
+   Then, still in Hungarian, ask to book the patient (give the full name) with
+   the doctor from "proposed_slot" on its date and time, and ask the
+   receptionist to confirm it. Say the date and time naturally in Hungarian
+   (e.g. "november 23-án, hétfőn 12 órakor"). Never speak English to the
    receptionist.
-3. Negotiate a time slot with the receptionist. Every time the receptionist
+   If the receptionist simply agrees ("igen", "rendben", "megfelel", "jó",
+   "rögzítettem", "lefoglaltam"), that IS the confirmation: go to step 5 and
+   book "proposed_slot" (clinic id from plan_appointment, its slot_start and
+   duration_min, notes with the doctor's name plus anything the receptionist
+   said to bring).
+3. If the receptionist offers a different time instead, negotiate. Every time the receptionist
    offers a time, first call `check_slot` with the clinic id, the offered time
    as "YYYY-MM-DDTHH:MM" (date taken from the windows), and the same `when` and
-   `part_of_day` you used before. Accept only if "fits" is true. If it is
+   `part_of_day` you used in plan_appointment. Accept only if "fits" is true. If it is
    false, politely decline in Hungarian, using "reason", and ask for another
    time inside the patient's window.
 4. When the receptionist asks for the patient's name, give it. Only if the
@@ -74,15 +84,16 @@ Every message starts with a tag: "[speaker|language] text".
 5. When the receptionist confirms the booking (e.g. "rögzítettem",
    "lefoglaltam", "rendben, várjuk") or says goodbye, the call is OVER: do not
    ask anyone any more questions. In that turn:
-   a. If a slot was accepted (check_slot fits=true) and not booked yet, call
+   a. If a slot was accepted (the proposed_slot from plan_appointment, or a
+      check_slot with fits=true) and not booked yet, call
       `create_calendar_event` ALONE first, with that clinic id, slot_start,
       the duration the receptionist said (30 if not said), the patient's name,
-      and notes containing ONLY what the receptionist said to bring or do
-      ("" if nothing). Wait for its result. If it returns an error, follow its
+      and notes containing ONLY "Doctor: <doctor name>" (if a doctor was
+      agreed) plus what the receptionist said to bring or do. Wait for its result. If it returns an error, follow its
       error_message instead of saying goodbye.
    b. Then thank the receptionist and say goodbye in Hungarian.
    c. And send the patient a short English summary: clinic, address, the
-      exact "date_long" and "time" from create_calendar_event's "summary", what
+      doctor, the exact "date_long" and "time" from create_calendar_event's "summary", what
       to bring ONLY if the receptionist said it, and that the appointment was
       added to their calendar. Never invent details.
    If the call is already over and someone speaks again, reply with one short
@@ -99,5 +110,5 @@ root_agent = Agent(
     model=os.getenv("AGENT_MODEL", "gemini-3.1-flash-lite"),
     description="Books clinic appointments by phone in Hungarian for international students.",
     instruction=INSTRUCTION,
-    tools=[find_clinics, resolve_time_window, check_slot, create_calendar_event, say],
+    tools=[plan_appointment, find_clinics, resolve_time_window, check_slot, create_calendar_event, say],
 )

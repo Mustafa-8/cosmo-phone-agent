@@ -3,7 +3,8 @@
 Mounted at /call by serve.py.   WS /call/ws?room=ABCD&role=patient|receptionist
 
 Phone -> server
-  {"type": "start", "name": "...", "request": "..."}   patient only: starts the booking call
+  {"type": "start", "name": "...", "request": "..."}   patient only: starts the booking call (typed)
+  {"type": "reset"}                                      patient only: clear the room for a new call
   {"type": "say", "text": "..."}                         a finished sentence (committed STT) or typed text
   {"type": "playing", "on": true|false}                  this phone started/stopped playing COSMO audio
 Server -> phones
@@ -13,7 +14,7 @@ Server -> phones
   {"type": "playing", "on"}                              some phone is playing COSMO audio: pause your mic
   {"type": "error", "message"}
 
-Each human sentence is sent to the agent exactly as heard, one agent turn at a time per room.
+The patient's first spoken sentence (name + request) starts the call. Each human sentence is sent to the agent exactly as heard, one agent turn at a time per room.
 """
 from __future__ import annotations
 
@@ -143,6 +144,10 @@ async def call_ws(ws: WebSocket, room: str, role: str) -> None:
                 await r.add_message("patient", request, "en")
                 spoken = f"My name is {name}. {request}" if name else request
                 asyncio.create_task(r.agent_turn("patient", spoken))
+            elif kind == "reset" and role == "patient":
+                r.session_id, r.history = None, []
+                await r.broadcast({"type": "reset"})
+                await r.broadcast(r.state())
             elif kind == "say":
                 text = (data.get("text") or "").strip()
                 if text:

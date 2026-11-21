@@ -5,10 +5,39 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+from google.adk.tools import ToolContext
+
 from .clinics import get_clinic
+from .slots import ACCEPTED_SLOT_KEY
 from .time_window import TIMEZONE
 
 BOOKINGS_DIR = Path(__file__).resolve().parents[2] / "bookings"  # repo root; ignored by git
+BOOKED_KEY = "booked_slot"
+
+
+def _booking_guard(state: dict, invocation_id: str, clinic_id: str, slot_start: str) -> dict:
+    """Python-enforced call order: accept a slot in one turn, book only after a later confirmation.
+
+    Returns {"status": "ok"} if booking is allowed, otherwise a status "error" dict
+    telling the model what to do instead.
+    """
+    if state.get(BOOKED_KEY):
+        return {"status": "error",
+                "error_message": "This appointment is already booked. Do not book again; just reply politely."}
+    accepted = state.get(ACCEPTED_SLOT_KEY)
+    if not accepted:
+        return {"status": "error",
+                "error_message": "No slot has been accepted yet. Call check_slot for the receptionist's offer first."}
+    if (accepted["clinic_id"], accepted["slot_start"]) != (clinic_id, slot_start.strip()):
+        return {"status": "error",
+                "error_message": f"You accepted {accepted['slot_start']} at {accepted['clinic_id']}; "
+                                 "book exactly that slot, or check a new offer with check_slot first."}
+    if accepted["invocation_id"] == invocation_id:
+        return {"status": "error",
+                "error_message": "The receptionist has not confirmed yet. Do NOT book and do NOT say goodbye "
+                                 "now: answer the receptionist (say yes, give the patient's name if asked) and "
+                                 "wait for their confirmation in the next turn."}
+    return {"status": "ok"}
 
 
 def _escape(text: str) -> str:
@@ -98,11 +127,12 @@ def _create(clinic_id: str, slot_start: str, duration_min: int, patient_name: st
 
 
 def create_calendar_event(clinic_id: str, slot_start: str, duration_min: int,
-                          patient_name: str, notes: str = "") -> dict:
+                          patient_name: str, notes: str, tool_context: ToolContext) -> dict:
     """Add the confirmed appointment to the patient's calendar as an .ics file.
 
-    Call this ONCE, only after `check_slot` returned fits=true AND the
-    receptionist confirmed the booking. Then use the returned "summary" in
+    Call this ONCE, only after `check_slot` returned fits=true in an EARLIER
+    turn AND the receptionist has now confirmed the booking. It refuses to book
+    in the same turn the slot was accepted. Then use the returned "summary" in
     your English message to the patient (copy date_long and time exactly).
 
     Args:
@@ -112,14 +142,23 @@ def create_calendar_event(clinic_id: str, slot_start: str, duration_min: int,
         duration_min: Appointment length in minutes (10-180). Use what the
             receptionist said, or 30 if they did not say.
         patient_name: The patient's full name, as the patient gave it.
-        notes: Short English notes for the patient, e.g. "Bring your TAJ card".
-            Use "" if there is nothing to add.
+        notes: ONLY what the receptionist actually said the patient must bring
+            or do, in short English (e.g. "Bring your TAJ card"). Never add
+            anything the receptionist did not say. Use "" if they said nothing.
 
     Returns:
         {"status": "ok", "file": "...", "ics": "...", "summary": {clinic,
          address, phone, date_long, time}}.
-        {"status": "error", "error_message": "..."} for a bad time format,
+        {"status": "error", "error_message": "..."} if the receptionist has not
+        confirmed yet (follow the message: do not book or say goodbye), for a
+        slot that was not accepted, a repeat booking, a bad time format,
         duration, empty name, unknown clinic, or if the file cannot be written.
     """
-    return _create(clinic_id, slot_start, duration_min, patient_name, notes,
-                   BOOKINGS_DIR, datetime.now(timezone.utc))
+    guard = _booking_guard(tool_context.state, tool_context.invocation_id, clinic_id, slot_start)
+    if guard["status"] != "ok":
+        return guard
+    result = _create(clinic_id, slot_start, duration_min, patient_name, notes,
+                     BOOKINGS_DIR, datetime.now(timezone.utc))
+    if result["status"] == "ok":
+        tool_context.state[BOOKED_KEY] = {"clinic_id": clinic_id, "slot_start": slot_start.strip()}
+    return result

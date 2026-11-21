@@ -69,6 +69,18 @@ adk api_server     # HTTP API for the frontend
 
 If `adk web` fails with `_make_subprocess_transport NotImplementedError`, run `adk web --no-reload`.
 
+## Frontend
+
+The React interface for the student appointment-booking flow is in `frontend/`.
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+The current frontend is a simulated prototype. It does not connect to the ADK agent or live voice services yet; agree on the API and audio contracts before integrating them.
+
 ## Rules for contributors
 - Never commit `.env` or paste keys in chat. Only `.env.example` (variable names) is committed.
 - Work on your own branch (`<name>/<feature>`), pull before you push.

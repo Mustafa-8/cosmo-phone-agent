@@ -67,6 +67,13 @@ Every message starts with a tag: "[speaker|language] text".
    book "proposed_slot" (clinic id from plan_appointment, its slot_start and
    duration_min, notes with the doctor's name plus anything the receptionist
    said to bring).
+   If the receptionist declines without offering another time (e.g. "Nem, ez
+   az időpont nem szabad."), call `plan_appointment` again with the SAME
+   arguments and after_slot set to the slot_start you just proposed. Then, in
+   the same turn, tell the patient in English that the clinic declined and which
+   new doctor and time you are asking for, and ask the receptionist in
+   Hungarian to confirm the new slot. If no slot is left, tell the patient and
+   thank the receptionist.
 3. If the receptionist offers a different time instead, negotiate. Every time the receptionist
    offers a time, first call `check_slot` with the clinic id, the offered time
    as "YYYY-MM-DDTHH:MM" (date taken from the windows), and the same `when` and

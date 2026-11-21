@@ -6,6 +6,7 @@ Phone -> server
   {"type": "start", "name": "...", "request": "..."}   patient only: starts the booking call (typed)
   {"type": "reset"}                                      patient only: clear the room for a new call
   {"type": "say", "text": "..."}                         a finished sentence (committed STT) or typed text
+  {"type": "decision", "value": "confirm"|"deny"}        reception only: the Confirm / Deny buttons
   {"type": "playing", "on": true|false}                  this phone started/stopped playing COSMO audio
 Server -> phones
   {"type": "message", "id", "speaker", "to", "language", "text", "translation"}   (history is replayed on join)
@@ -34,6 +35,11 @@ log = logging.getLogger("cosmo.call")
 AGENT_URL = os.getenv("AGENT_URL", f"http://127.0.0.1:{os.getenv('PORT', '8080')}")
 USER_ID = "two-phone-demo"
 LANG = {"patient": "en", "receptionist": "hu"}
+# The reception phone confirms or denies with buttons; COSMO receives these exact sentences.
+DECISIONS = {
+    "confirm": "Igen, megerősítem, az időpont rögzítve.",
+    "deny": "Nem, ez az időpont nem szabad.",
+}
 
 app = FastAPI(title="COSMO two-phone call rooms")
 
@@ -148,6 +154,12 @@ async def call_ws(ws: WebSocket, room: str, role: str) -> None:
                 r.session_id, r.history = None, []
                 await r.broadcast({"type": "reset"})
                 await r.broadcast(r.state())
+            elif kind == "decision" and role == "receptionist" and data.get("value") in DECISIONS:
+                text = DECISIONS[data["value"]]
+                msg = await r.add_message(role, text, LANG[role])
+                msg["decision"] = data["value"]
+                await r.broadcast({"type": "decision", "id": msg["id"], "value": data["value"]})
+                asyncio.create_task(r.agent_turn(role, text))
             elif kind == "say":
                 text = (data.get("text") or "").strip()
                 if text:

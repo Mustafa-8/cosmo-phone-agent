@@ -12,8 +12,9 @@ from .time_window import TIMEZONE, _resolve
 APPOINTMENT_MIN = 30
 
 
-def _first_slot(clinic: dict, windows: list) -> dict | None:
-    """First half-hour start inside both the patient's window and the clinic's opening hours."""
+def _first_slot(clinic: dict, windows: list, after_slot: str = "") -> dict | None:
+    """First half-hour start inside both the patient's window and the clinic's opening hours,
+    strictly later than `after_slot` ("YYYY-MM-DDTHH:MM", e.g. a time the clinic declined)."""
     for w in windows:
         day = date.fromisoformat(w["date"])
         hours = clinic["opening_hours"].get(WEEKDAY_KEYS[day.weekday()])
@@ -25,20 +26,24 @@ def _first_slot(clinic: dict, windows: list) -> dict | None:
         t = datetime.strptime(f"{w['date']} {start}", "%Y-%m-%d %H:%M")
         if t.minute not in (0, 30):  # round up to the next half hour
             t += timedelta(minutes=30 - t.minute % 30)
-        if (t + timedelta(minutes=APPOINTMENT_MIN)).strftime("%H:%M") <= end:
-            doctors = clinic.get("doctors") or []
-            return {
-                "slot_start": t.strftime("%Y-%m-%dT%H:%M"),
-                "date": w["date"],
-                "weekday": t.strftime("%A"),
-                "time": t.strftime("%H:%M"),
-                "duration_min": APPOINTMENT_MIN,
-                "doctor": doctors[day.toordinal() % len(doctors)] if doctors else "",
-            }
+        while (t + timedelta(minutes=APPOINTMENT_MIN)).strftime("%H:%M") <= end and t.date() == day:
+            slot_start = t.strftime("%Y-%m-%dT%H:%M")
+            if slot_start > after_slot.strip():
+                doctors = clinic.get("doctors") or []
+                return {
+                    "slot_start": slot_start,
+                    "date": w["date"],
+                    "weekday": t.strftime("%A"),
+                    "time": t.strftime("%H:%M"),
+                    "duration_min": APPOINTMENT_MIN,
+                    "doctor": doctors[day.toordinal() % len(doctors)] if doctors else "",
+                }
+            t += timedelta(minutes=APPOINTMENT_MIN)
     return None
 
 
-def _plan(specialty: str, district: str, when: str, part_of_day: str, today: date) -> dict:
+def _plan(specialty: str, district: str, when: str, part_of_day: str, today: date,
+          after_slot: str = "") -> dict:
     """Pure calculation behind plan_appointment, with `today` injected for tests."""
     found = find_clinics(specialty, district)
     if found.get("status") != "ok" or not found.get("clinics"):
@@ -50,7 +55,7 @@ def _plan(specialty: str, district: str, when: str, part_of_day: str, today: dat
     if not windows["windows"]:
         return {"status": "error", "error_message": "No days left in that time window. Ask the patient for another time."}
     for clinic in found["clinics"]:
-        slot = _first_slot(clinic, windows["windows"])
+        slot = _first_slot(clinic, windows["windows"], after_slot)
         if slot:
             return {"status": "ok",
                     "clinic": {k: clinic[k] for k in ("id", "name", "address", "phone")},
@@ -61,7 +66,7 @@ def _plan(specialty: str, district: str, when: str, part_of_day: str, today: dat
 
 
 def plan_appointment(specialty: str, district: str, when: str, part_of_day: str,
-                     tool_context: ToolContext) -> dict:
+                     tool_context: ToolContext, after_slot: str = "") -> dict:
     """Find the clinic, the doctor and one concrete free slot for the patient's request.
 
     Call this ONCE, first, when the patient asks for an appointment (instead of
@@ -73,6 +78,9 @@ def plan_appointment(specialty: str, district: str, when: str, part_of_day: str,
         district: Budapest district if the patient gave one (e.g. "XI"), else "".
         when: One of "today", "tomorrow", "this_week", "next_week".
         part_of_day: One of "morning", "afternoon", "evening", "any".
+        after_slot: "" for a new request. When the clinic DECLINED a proposed slot,
+            call again with the same arguments and after_slot set to that slot_start
+            ("YYYY-MM-DDTHH:MM") to get the next free slot.
 
     Returns:
         {"status": "ok", "clinic": {id, name, address, phone},
@@ -80,7 +88,7 @@ def plan_appointment(specialty: str, district: str, when: str, part_of_day: str,
          "windows": [...], "when": ..., "part_of_day": ...}
         or {"status": "error", "error_message": "..."}: then ask the patient.
     """
-    result = _plan(specialty, district, when, part_of_day, datetime.now(TIMEZONE).date())
+    result = _plan(specialty, district, when, part_of_day, datetime.now(TIMEZONE).date(), after_slot)
     if result.get("status") == "ok":
         # The proposed slot counts as accepted on our side; create_calendar_event still refuses
         # to book it until the receptionist confirms in a later turn.

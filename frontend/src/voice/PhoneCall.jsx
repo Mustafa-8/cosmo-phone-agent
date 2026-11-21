@@ -19,11 +19,13 @@ const TEXT = {
   },
   receptionist: {
     title: 'Recepció', callee: 'COSMO', calleeSub: 'MI asszisztens · bejövő hívás',
-    action: 'Hívás fogadása', hint: 'Fogadja a hívást, majd beszéljen természetesen. COSMO egy diák nevében foglal időpontot.',
-    example: 'Elég megerősíteni, pl. „Igen, rendben, rögzítettem.”',
+    action: 'Hívás fogadása', hint: 'COSMO egy diák nevében kér időpontot. Önnek nem kell beszélnie: csak erősítse meg vagy utasítsa el.',
+    example: 'Ha emberi segítség kell, a „Beszélni szeretnék” gombbal bekapcsolódhat a hívásba.',
     listening: 'Hallgatom…', youSpeak: 'Ön', thinking: 'COSMO gondolkodik…', speaking: 'COSMO beszél…',
     waitOther: 'Várakozás a páciensre…', mute: 'Némítás', unmute: 'Hang be', hangup: 'Letenni',
     transcript: 'Átirat', ended: 'A hívás véget ért', again: 'Újra fogadás', newCall: 'Új hívás',
+    confirm: '✓ Megerősítem', deny: '✕ Nem szabad', joinLine: '🎤 Beszélni szeretnék', leaveLine: 'Mikrofon ki',
+    decide: 'Erősítse meg vagy utasítsa el az időpontot:', waiting: 'Várjuk COSMO kérését…', onLine: 'Ön a vonalban van — beszéljen',
   },
 }
 
@@ -142,6 +144,7 @@ function CallScreen({ room, role, audioCtx }) {
   const [heard, setHeard] = useState('')
   const [seconds, setSeconds] = useState(0)
   const [showTranscript, setShowTranscript] = useState(false)
+  const [micOn, setMicOn] = useState(false)
   const wsRef = useRef(null)
   const speakerRef = useRef(null)
   const micRef = useRef(null)
@@ -204,10 +207,8 @@ function CallScreen({ room, role, audioCtx }) {
     if (wsRef.current?.readyState === WebSocket.OPEN) wsRef.current.send(JSON.stringify(msg))
   }
 
-  // One tap: unlock audio and open the mic for the whole call (hands-free, end of sentence by VAD).
-  async function startCall() {
-    setError('')
-    await speakerRef.current.unlock()
+  // Open the mic for hands-free talking (end of each sentence detected by Scribe VAD).
+  async function openMic() {
     const stt = openStt(LANG[role], {
       onPartial: (text) => setHeard(text),
       onCommitted: (text) => { setHeard(''); send({ type: 'say', text }) },
@@ -218,8 +219,33 @@ function CallScreen({ room, role, audioCtx }) {
         if (!busyRef.current && !mutedRef.current) stt.send(chunk)
       })
       micRef.current = { stt, stopMic }
-      setSeconds(0)
-      setPhase('live')
+      setMicOn(true)
+    } catch (e) {
+      stt.close()
+      setError(`Microphone not available: ${e.message}`)
+    }
+  }
+
+  function closeMic() {
+    const current = micRef.current
+    micRef.current = null
+    setMicOn(false)
+    setHeard('')
+    if (current) {
+      current.stopMic()
+      current.stt.close()
+    }
+  }
+
+  // One tap: unlock audio (phones require a tap), start the call. The patient talks hands-free;
+  // the reception only listens and confirms or denies, and opens the mic only to join the line.
+  async function startCall() {
+    setError('')
+    await speakerRef.current.unlock()
+    if (role === 'patient') await openMic()
+    setSeconds(0)
+    setPhase('live')
+    {
       // Answering a ringing call: play what COSMO already said to this phone.
       for (const m of messages) {
         if (m.speaker === 'agent' && m.to === role && m.id > spokenRef.current) {
@@ -227,22 +253,18 @@ function CallScreen({ room, role, audioCtx }) {
           speakerRef.current.say(m.text, m.language)
         }
       }
-    } catch (e) {
-      stt.close()
-      setError(`Microphone not available: ${e.message}`)
     }
   }
 
   function hangUp() {
-    const current = micRef.current
-    micRef.current = null
+    closeMic()
     speakerRef.current.stop()
-    setHeard('')
     setPhase('ended')
-    if (current) {
-      current.stopMic()
-      current.stt.close()
-    }
+  }
+
+  function decide(value) {
+    speakerRef.current.stop()
+    send({ type: 'decision', value })
   }
 
   function newCall() {
@@ -257,12 +279,16 @@ function CallScreen({ room, role, audioCtx }) {
   const lastToMe = toMe[toMe.length - 1]
   const mine = messages.filter((m) => m.speaker === role)
   const lastMine = mine[mine.length - 1]
+  const lastHuman = messages.filter((m) => m.speaker === 'receptionist').pop()
+  const awaitingDecision = role === 'receptionist' && phase === 'live' && !state.thinking && lastToMe
+    && lastToMe.text.includes('?') && (!lastHuman || lastHuman.id < lastToMe.id)
   const ringing = phase === 'idle' && toMe.some((m) => m.id > spokenRef.current)
   const status = speaking ? t.speaking
     : state.thinking ? t.thinking
       : heard ? `${t.youSpeak}: ${heard}`
         : muted ? t.unmute
-          : t.listening
+          : role === 'receptionist' ? (micOn ? t.onLine : awaitingDecision ? t.decide : t.waiting)
+            : t.listening
 
   return (
     <div className={`phone-call phone-call--${role}`}>
@@ -323,11 +349,24 @@ function CallScreen({ room, role, audioCtx }) {
             <span aria-hidden="true">📞</span>{t.action}
           </button>
         )}
+        {awaitingDecision && (
+          <div className="call-decide">
+            <button className="call-btn call-btn--green" onClick={() => decide('confirm')}>{t.confirm}</button>
+            <button className="call-btn call-btn--red" onClick={() => decide('deny')}>{t.deny}</button>
+          </div>
+        )}
+        {phase === 'live' && role === 'receptionist' && (
+          <button className={`call-btn call-btn--round ${micOn ? 'call-btn--on' : ''}`} onClick={micOn ? closeMic : openMic}>
+            {micOn ? t.leaveLine : t.joinLine}
+          </button>
+        )}
         {phase === 'live' && (
           <>
-            <button className={`call-btn call-btn--round ${muted ? 'call-btn--on' : ''}`} onClick={() => setMuted(!muted)} aria-pressed={muted}>
-              {muted ? t.unmute : t.mute}
-            </button>
+            {micOn && (
+              <button className={`call-btn call-btn--round ${muted ? 'call-btn--on' : ''}`} onClick={() => setMuted(!muted)} aria-pressed={muted}>
+                {muted ? t.unmute : t.mute}
+              </button>
+            )}
             <button className="call-btn call-btn--red" onClick={hangUp}>{t.hangup}</button>
           </>
         )}

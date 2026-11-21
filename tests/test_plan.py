@@ -48,3 +48,15 @@ def test_proposed_slot_is_booked_only_after_confirmation_turn():
     # same turn: refused; next turn (receptionist confirmed): allowed
     assert _booking_guard(ctx.state, "turn-1", "dental-plus-vi", slot)["status"] == "error"
     assert _booking_guard(ctx.state, "turn-2", "dental-plus-vi", slot)["status"] == "ok"
+
+
+def test_after_declined_slot_proposes_the_next_one():
+    first = _plan("dentist", "", "next_week", "afternoon", SATURDAY)["proposed_slot"]["slot_start"]
+    nxt = _plan("dentist", "", "next_week", "afternoon", SATURDAY, after_slot=first)["proposed_slot"]
+    assert first == "2026-11-23T12:00" and nxt["slot_start"] == "2026-11-23T12:30"
+
+
+def test_after_last_slot_of_day_moves_to_next_open_day():
+    # Dental Plus closes at 18:00 but the afternoon window ends at 17:00, so 16:30 is Monday's last slot.
+    nxt = _plan("dentist", "", "next_week", "afternoon", SATURDAY, after_slot="2026-11-23T16:30")["proposed_slot"]
+    assert nxt["slot_start"] == "2026-11-24T12:00" and nxt["weekday"] == "Tuesday"

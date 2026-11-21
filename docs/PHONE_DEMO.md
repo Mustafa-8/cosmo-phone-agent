@@ -6,7 +6,7 @@ only in its own language.
 
 ![The whole call, both phones side by side](media/demo.gif)
 
-▶ [Download the video (MP4)](media/demo.mp4?raw=true). 68 s with the real voices (patient in English, COSMO in English and Hungarian). GitHub does not play videos stored in a repository, so download it; the GIF above is the silent version that plays inline.
+▶ Video, 68 s with the real voices: [WebM](media/demo.webm?raw=true) (plays on Linux, Chrome, Firefox, Android) · [MP4](media/demo.mp4?raw=true) (Windows, Mac, iPhone, PowerPoint). GitHub does not play videos stored in a repository, so download one; the GIF above is the silent version that plays inline.
 
 ## QR codes (live demo link)
 

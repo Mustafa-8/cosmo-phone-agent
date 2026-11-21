@@ -101,6 +101,21 @@ cd frontend && npm run lint && npm run build
 
 The voice layer's tests use `pytest`, which is not in `requirements.txt`. Install it once with `pip install pytest`, then run `python -m pytest voice/tests`.
 
+## Two-phone demo (real call)
+
+A patient phone (English) and a clinic reception phone (Hungarian) talk through COSMO. The patient just speaks;
+COSMO picks a clinic, doctor and free slot and asks the reception, who only taps **Confirm** or **Deny**
+(or joins the line if a human conversation is needed).
+
+<p>
+<img src="docs/media/2-patient-calls-patient.png" width="190" alt="Patient on the call">
+<img src="docs/media/4-reception-answers-reception.png" width="190" alt="Reception confirms or denies">
+<img src="docs/media/6-confirmed-patient.png" width="190" alt="Patient gets the confirmation">
+</p>
+
+**How to run and operate it, step by step, with screenshots and a video: [docs/PHONE_DEMO.md](docs/PHONE_DEMO.md).**
+Quick start: `./run_online.sh`, then open `<link>/?phone` on two phones.
+
 ## Online demo (public link)
 `./run_online.sh` serves the agent, the voice bridge and the website on one port (`serve.py`) and opens a public Cloudflare quick tunnel (needs `cloudflared`). The link works only while your laptop runs it and changes on every start.
 

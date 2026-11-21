@@ -100,3 +100,9 @@
 .call-decide .call-btn { min-width: 150px; justify-content: center; font-size: 1.15rem; padding: 20px 24px; }
 .phone-input { font: inherit; font-size: 1.1rem; padding: 12px; border-radius: 12px; border: 2px solid var(--ph-muted);
   background: var(--ph-card); color: var(--ph-text); min-width: 0; }
+/* Compact controls so the reception's Confirm / Deny never cover COSMO's caption */
+.call-avatar { flex-shrink: 0; }
+.call-decide { width: 100%; flex-wrap: nowrap; }
+.call-decide .call-btn { flex: 1 1 0; min-width: 0; padding: 18px 10px; }
+.phone-call--receptionist .call-controls { gap: 10px; padding-top: 12px; }
+.phone-call--receptionist .call-controls > .call-btn { padding: 13px 18px; font-size: 0.98rem; min-width: 0; }

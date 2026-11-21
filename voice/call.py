@@ -33,6 +33,16 @@ from . import translation
 
 log = logging.getLogger("cosmo.call")
 AGENT_URL = os.getenv("AGENT_URL", f"http://127.0.0.1:{os.getenv('PORT', '8080')}")
+# serve.py sets this to the ADK app, so agent calls stay inside the process: no network hop, and
+# they do not go through the demo access-code middleware (which guards requests from outside).
+AGENT_APP = None
+
+
+def agent_client() -> httpx.AsyncClient:
+    if AGENT_APP is not None:
+        return httpx.AsyncClient(transport=httpx.ASGITransport(app=AGENT_APP), base_url="http://cosmo-agent",
+                                 timeout=120)
+    return httpx.AsyncClient(base_url=AGENT_URL, timeout=120)
 USER_ID = "two-phone-demo"
 LANG = {"patient": "en", "receptionist": "hu"}
 # Hands-free speech arrives in pieces (Scribe ends a sentence after a short pause). Wait this long
@@ -112,7 +122,7 @@ class Room:
             self.thinking = True
             await self.broadcast(self.state())
             try:
-                async with httpx.AsyncClient(base_url=AGENT_URL, timeout=120) as c:
+                async with agent_client() as c:
                     if self.session_id is None:
                         sid = f"room-{self.code}-{uuid.uuid4().hex[:6]}"
                         r = await c.post(f"/apps/{contract.APP_NAME}/users/{USER_ID}/sessions/{sid}", json={})

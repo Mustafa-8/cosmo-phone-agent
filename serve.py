@@ -50,6 +50,7 @@ ALLOW_ORIGINS = [o.strip() for o in os.getenv("ALLOW_ORIGINS", "").split(",") if
 app = get_fast_api_app(agents_dir=str(ROOT), web=False, host="127.0.0.1", port=PORT, lifespan=lifespan,
                        allow_origins=ALLOW_ORIGINS)
 app.mount("/voice", voice_server.app)
+call_rooms.AGENT_APP = app  # call rooms reach the agent in-process (see voice/call.py)
 app.mount("/call", call_rooms.app)  # two-phone call rooms (patient phone + receptionist phone)
 if not DIST.exists():
     raise SystemExit("frontend/dist is missing: build it first (see the top of serve.py or run ./run_online.sh)")

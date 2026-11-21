@@ -317,7 +317,7 @@ function CallScreen({ room, role, audioCtx, code }) {
   const patientActive = messages.some((m) => m.speaker === 'patient') || state.thinking
   const lastHuman = messages.filter((m) => m.speaker === 'receptionist').pop()
   const awaitingDecision = role === 'receptionist' && phase === 'live' && !state.thinking && lastToMe
-    && lastToMe.text.includes('?') && (!lastHuman || lastHuman.id < lastToMe.id)
+    && !/viszontlát/i.test(lastToMe.text) && (!lastHuman || lastHuman.id < lastToMe.id) // every COSMO request except the goodbye
   const ringing = phase === 'idle' && toMe.some((m) => m.id > spokenRef.current)
   const status = speaking ? t.speaking
     : state.thinking ? t.thinking

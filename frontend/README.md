@@ -1,56 +1,48 @@
 # COSMO Frontend
 
-React UI prototype for COSMO's clinic-appointment booking MVP.
+React UI for COSMO's simulated clinic-booking conversation.
 
 ## What is included
 
-- Required student full name and appointment request form
-- English-only student language selection and fixed Hungarian clinic language
-- Sample-data mode with original Hungarian speech and English translations
-- Live agent mode through the local integration gateway and a receptionist microphone stream
-- Live transcript preview, translated committed receptionist speech, and routed agent audio playback
-- Distinct patient, receptionist, agent-to-receptionist, and agent-to-patient message data
-- Microphone mute, audio controls, and call teardown
-- Responsive layout for desktop and mobile
+- Required student name and appointment request form
+- Live-agent and sample-data modes
+- Receptionist role-play by typing or browser microphone
+- Hungarian speech recognition, English subtitles, and spoken agent replies through the voice bridge
+- Call controls, status and error feedback, and a responsive desktop/mobile layout
 
-Conversation messages use `speaker`, `original_text`, and `translated_text`. Agent messages also include `to: "receptionist"` for Hungarian call speech or `to: "patient"` for English student updates. The patient request includes `full_name`.
+The browser sends finished receptionist transcripts to the ADK agent. Partial
+transcripts are previews only. No real clinic is contacted and no telephone
+call or live transfer is made.
 
 ## Run locally
 
-Start the ADK API server and the local integration gateway from the repository root:
+Start the ADK API and voice bridge from the repository root in separate
+terminals:
 
 ```powershell
-adk api_server
-python -m uvicorn phone_agent.integration:app --host 127.0.0.1 --port 8001
+adk api_server --allow_origins http://localhost:5173
+uvicorn voice.server:app --port 8001
 ```
 
-Then start the frontend:
+Then start Vite:
 
 ```powershell
 npm ci
 npm run dev
 ```
 
-Open the local URL printed by Vite. Choose **Sample conversation** and use
-**Show next sample reply** to advance through examples, or choose **Live agent
-+ microphone** to start a session. Live mode requires a Google API key. STT,
-translation, and TTS use mock mode when provider keys are absent; mock STT
-responds with scripted booking lines and does not recognize actual speech.
-Use headphones during audio tests.
+Use Node.js 20.19+ or 22.12+ for Vite 8. Open the local URL, select **Live
+agent**, start a call, and use **Speak as receptionist** or type a receptionist
+reply. Choose **Sample data** to run the conversation without the agent or
+voice services, then use **Show next sample reply**.
 
-## Live mode and privacy
+The default service URLs are `http://localhost:8000` for ADK and
+`http://localhost:8001` for the voice bridge. Optional `VITE_AGENT_URL` and
+`VITE_VOICE_URL` values configure them; never put provider secrets in frontend
+variables.
 
-The receptionist is still a teammate playing a clinic. This application does
-not place real calls or contact clinics. The live gateway sends the entered
-name and request to the local ADK service, streams microphone audio to the
-configured speech service, and may write a local `.ics` file after a booking is
-confirmed. Use fictional details only. Do not use this prototype for medical
-advice or emergencies.
-
-Provider credentials stay in the backend `.env` and must never be placed in
-frontend variables. Vite proxies `/api` and `/ws` to the local gateway; a
-production deployment needs an equivalent same-origin HTTP and WebSocket
-reverse proxy.
+Use fictional patient details only. Translation subtitles are a convenience
+and are not verified medical advice.
 
 ## Checks
 

@@ -202,45 +202,6 @@
   font-weight: 700;
 }
 
-.mode-choice {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-  margin: 0 0 16px;
-  border: 1px solid #e8ede8;
-  border-radius: 8px;
-  padding: 10px;
-}
-
-.mode-choice legend {
-  padding: 0 4px;
-  color: #56665a;
-  font-size: 9px;
-  font-weight: 700;
-}
-
-.mode-choice label {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  color: #526055;
-  font-size: 9px;
-  cursor: pointer;
-}
-
-.mode-choice input {
-  margin: 0;
-  accent-color: var(--green);
-}
-
-.mode-choice p {
-  grid-column: 1 / -1;
-  margin: 0;
-  color: #849087;
-  font-size: 8px;
-  line-height: 1.5;
-}
-
 .workflow-grid {
   display: grid;
   grid-template-columns: minmax(0, 0.91fr) minmax(0, 1.09fr);
@@ -622,35 +583,6 @@
   font-weight: 690;
 }
 
-.status-banner,
-.urgent-banner {
-  margin: 10px 14px 0;
-  border: 1px solid #e4e9e4;
-  border-radius: 7px;
-  background: #f8faf8;
-  padding: 8px 10px;
-  color: #5d6b60;
-  font-size: 9px;
-  line-height: 1.5;
-}
-
-.status-banner--error,
-.urgent-banner {
-  border-color: #eed8d3;
-  background: #fff7f5;
-  color: #8a4338;
-}
-
-.status-banner--warning {
-  border-color: #eee2c9;
-  background: #fffbf1;
-  color: #7e6336;
-}
-
-.urgent-banner {
-  font-weight: 620;
-}
-
 .live-label {
   display: inline-flex;
   align-items: center;
@@ -675,15 +607,6 @@
   gap: 9px;
   overflow-y: auto;
   padding: 12px 15px;
-}
-
-.partial-transcript {
-  margin: 0;
-  border-left: 2px solid #b2c5b3;
-  padding: 3px 7px;
-  color: #89938b;
-  font-size: 9px;
-  font-style: italic;
 }
 
 .empty-conversation {
@@ -819,15 +742,6 @@
   color: #6a9270;
 }
 
-.clarification-note {
-  margin: 7px 0 0;
-  border-top: 1px solid #eee2c9;
-  padding-top: 6px;
-  color: #846735;
-  font-size: 8px;
-  line-height: 1.45;
-}
-
 .simulate-button,
 .text-button {
   display: inline-flex;
@@ -887,11 +801,6 @@
   border-color: #ead9d4;
   background: #fff8f6;
   color: #a65c4e;
-}
-
-.control-button:disabled {
-  cursor: not-allowed;
-  opacity: 0.55;
 }
 
 .end-button {
@@ -1052,4 +961,117 @@ textarea:focus-visible {
     scroll-behavior: auto !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* Live agent integration */
+.mode-switch {
+  display: inline-flex;
+  margin-left: auto;
+  flex: 0 0 auto;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #fff;
+  padding: 2px;
+}
+
+.mode-switch button {
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  padding: 5px 10px;
+  color: var(--muted);
+  font: inherit;
+  font-size: 10px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.mode-switch button.mode-switch--on {
+  background: var(--green);
+  color: #fff;
+}
+
+.mode-switch button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.message-error {
+  margin: 0;
+  border: 1px solid #f0c9c4;
+  border-radius: 8px;
+  background: #fdf2f0;
+  padding: 9px 11px;
+  color: #8a2f24;
+  font-size: 11px;
+}
+
+.message-thinking {
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
+  font-style: italic;
+}
+
+.receptionist-form {
+  border-top: 1px solid #edf1ed;
+  padding: 11px 13px 4px;
+}
+
+.receptionist-row {
+  display: flex;
+  gap: 7px;
+}
+
+.receptionist-row input {
+  flex: 1;
+  min-width: 0;
+  height: 36px;
+  border: 1px solid #e0e7e1;
+  border-radius: 8px;
+  outline: 0;
+  background: #fff;
+  padding: 0 11px;
+  color: #344239;
+  font: inherit;
+  font-size: 11px;
+}
+
+.receptionist-row input:focus {
+  border-color: #82a58b;
+  box-shadow: 0 0 0 3px #edf5ee;
+}
+
+.receptionist-row button {
+  border: 1px solid var(--green);
+  border-radius: 8px;
+  background: var(--green);
+  padding: 0 14px;
+  color: #fff;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.receptionist-row button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+/* Voice layer: receptionist mic + live transcript preview */
+.voice-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+
+.voice-heard {
+  font-size: 0.85rem;
+  opacity: 0.75;
+  font-style: italic;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }

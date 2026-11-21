@@ -2,6 +2,8 @@
 
 from datetime import date, datetime
 
+from google.adk.tools import ToolContext
+
 from .clinics import get_clinic
 from .time_window import TIMEZONE, _resolve
 
@@ -51,7 +53,11 @@ def _check(clinic_id: str, slot_start: str, when: str, part_of_day: str, today: 
             "reason": "Inside the patient's window and the clinic's opening hours."}
 
 
-def check_slot(clinic_id: str, slot_start: str, when: str, part_of_day: str) -> dict:
+ACCEPTED_SLOT_KEY = "accepted_slot"
+
+
+def check_slot(clinic_id: str, slot_start: str, when: str, part_of_day: str,
+               tool_context: ToolContext) -> dict:
     """Check whether a time slot offered by the receptionist is acceptable.
 
     Call this EVERY time the receptionist offers a time, before you accept or
@@ -73,4 +79,13 @@ def check_slot(clinic_id: str, slot_start: str, when: str, part_of_day: str) -> 
         {"status": "error", "error_message": "..."} for a bad slot format,
         unknown clinic, or unknown when/part_of_day.
     """
-    return _check(clinic_id, slot_start, when, part_of_day, datetime.now(TIMEZONE).date())
+    result = _check(clinic_id, slot_start, when, part_of_day, datetime.now(TIMEZONE).date())
+    if result.get("fits"):
+        # Remember which slot was accepted and in which turn, so create_calendar_event
+        # can refuse to book before the receptionist has confirmed in a later turn.
+        tool_context.state[ACCEPTED_SLOT_KEY] = {
+            "clinic_id": clinic_id,
+            "slot_start": slot_start.strip(),
+            "invocation_id": tool_context.invocation_id,
+        }
+    return result

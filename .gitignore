@@ -5,3 +5,5 @@ __pycache__/
 .DS_Store
 # Generated appointment files contain patient names
 bookings/
+# Generated speech test files
+*.mp3

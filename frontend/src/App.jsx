@@ -1,6 +1,10 @@
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import './App.css'
-import { PlaybackQueue, startMic } from './voice/audio.js'
+import { createSession, sendToAgent } from './agentApi'
+import { PlaybackQueue, startMic } from './voice/audio'
+import { openStt, speakItem, translateText } from './voice/voiceApi'
+
+const USER_ID = 'student-web'
 
 const languages = [
   { code: 'en', name: 'English' },
@@ -88,203 +92,146 @@ function App() {
   const [request, setRequest] = useState('I need a dentist appointment next week, in the afternoon.')
   const [studentLanguage, setStudentLanguage] = useState('en')
   const [clinicLanguage, setClinicLanguage] = useState('hu')
-  const [mode, setMode] = useState('sample')
-  const [activeMode, setActiveMode] = useState('sample')
   const [callState, setCallState] = useState('ready')
   const [isMuted, setIsMuted] = useState(false)
   const [isSpeaking, setIsSpeaking] = useState(true)
   const [replyIndex, setReplyIndex] = useState(-1)
   const [messages, setMessages] = useState([])
-  const [statusMessage, setStatusMessage] = useState('')
-  const [statusTone, setStatusTone] = useState('info')
-  const [partialTranscript, setPartialTranscript] = useState('')
-  const [urgentNotice, setUrgentNotice] = useState(false)
-  const [apiHealth, setApiHealth] = useState(null)
-  const [isStarting, setIsStarting] = useState(false)
-  const cleanupRef = useRef(() => {})
-  const playbackRef = useRef(null)
-  const conversationRef = useRef(null)
+  const [mode, setMode] = useState('live') // 'live' = real ADK agent, 'sample' = scripted demo data
+  const [isThinking, setIsThinking] = useState(false)
+  const [receptionistText, setReceptionistText] = useState('')
+  const sessionRef = useRef(null)
+  const nextId = useRef(100)
+
+  // Voice layer: receptionist mic -> Scribe -> agent -> ElevenLabs -> speaker.
+  const [micOn, setMicOn] = useState(false)
+  const [heardText, setHeardText] = useState('')
+  const queueRef = useRef(null)
+  const playingRef = useRef(false)
   const mutedRef = useRef(false)
   const speakingRef = useRef(true)
+  const micRef = useRef(null)
+  const agentChain = useRef(Promise.resolve())
+  const speechChain = useRef(Promise.resolve())
+  if (!queueRef.current) queueRef.current = new PlaybackQueue((playing) => { playingRef.current = playing })
+  mutedRef.current = isMuted
+  speakingRef.current = isSpeaking
 
   const isCallActive = callState === 'active'
+  const isLive = mode === 'live'
 
-  useEffect(() => {
-    let active = true
-    fetch('/api/health')
-      .then((response) => {
-        if (!response.ok) throw new Error('Integration gateway is unavailable.')
-        return response.json()
-      })
-      .then((health) => {
-        if (active) setApiHealth(health)
-      })
-      .catch(() => {
-        if (active) setApiHealth({ status: 'offline' })
-      })
-    return () => { active = false }
-  }, [])
+  function appendMessages(newMessages) {
+    const withIds = newMessages.map((message) => ({ ...message, id: nextId.current++ }))
+    setMessages((current) => [...current, ...withIds])
+    return withIds
+  }
 
-  useEffect(() => {
-    mutedRef.current = isMuted
-  }, [isMuted])
+  function setTranslation(id, text) {
+    setMessages((current) => current.map((m) => (m.id === id ? { ...m, translated_text: text } : m)))
+  }
 
-  useEffect(() => {
-    speakingRef.current = isSpeaking
-    if (!isSpeaking) {
-      playbackRef.current?.stop()
-      window.speechSynthesis?.cancel()
-    }
-  }, [isSpeaking])
-
-  useEffect(() => {
-    const conversation = conversationRef.current
-    if (conversation) conversation.scrollTop = conversation.scrollHeight
-  }, [messages, partialTranscript])
-
-  useEffect(() => () => cleanupRef.current(), [])
-
-  function appendLiveMessage(message) {
-    const event = { ...message, id: `${Date.now()}-${Math.random()}` }
-    setMessages((current) => [...current, event])
-    if (event.urgent) setUrgentNotice(true)
-    if (event.audio_error) {
-      setStatusTone('warning')
-      setStatusMessage(event.audio_error)
-    }
-    if (event.speaker === 'agent' && speakingRef.current) {
-      playbackRef.current?.enqueue({
-        text: event.original_text,
-        language: event.source_language,
-        audio_b64: event.audio_b64,
-        mime: event.audio_mime,
-      })
+  // Speak agent messages word for word, in order, and show an English translation of the Hungarian ones.
+  function voiceAgentMessages(added) {
+    for (const m of added) {
+      if (m.type !== 'transcript' || m.speaker !== 'agent') continue
+      const lang = m.to === 'patient' ? 'en' : 'hu'
+      if (speakingRef.current) {
+        const audio = speakItem(m.original_text, lang)
+        speechChain.current = speechChain.current
+          .then(() => audio)
+          .then((item) => { if (speakingRef.current) queueRef.current.enqueue(item) })
+      }
+      if (lang === 'hu') translateText(m.original_text, 'hu', 'en', 'agent').then((t) => t && setTranslation(m.id, t))
     }
   }
 
-  async function startLiveCall(name, appointmentRequest) {
-    setStatusMessage('')
-    setStatusTone('info')
-    setUrgentNotice(false)
-    setPartialTranscript('')
-
-    const response = await fetch('/api/calls', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ full_name: name, request: appointmentRequest }),
+  // One agent turn at a time, even if the receptionist speaks again while COSMO is thinking.
+  function talkToAgent(speaker, text) {
+    const run = agentChain.current.then(async () => {
+      setIsThinking(true)
+      const replies = await sendToAgent(USER_ID, sessionRef.current, speaker, text)
+      setIsThinking(false)
+      voiceAgentMessages(appendMessages(replies))
     })
-    const payload = await response.json().catch(() => ({}))
-    if (!response.ok) {
-      throw new Error(payload.detail || 'Could not start the live call.')
-    }
+    agentChain.current = run.catch(() => {})
+    return run
+  }
 
+  function handleReceptionistLine(text) {
+    setHeardText('')
+    const [msg] = appendMessages([{ speaker: 'receptionist', language: 'Hungarian', original_text: text, translated_text: '' }])
+    translateText(text, 'hu', 'en').then((t) => t && setTranslation(msg.id, t))
+    return talkToAgent('receptionist', text)
+  }
+
+  async function startReceptionistMic() {
+    const stt = openStt('hu', {
+      onPartial: (text) => setHeardText(text),
+      onCommitted: (text) => handleReceptionistLine(text),
+      onError: (message) => appendMessages([{ type: 'error', message }]),
+    })
+    try {
+      const stopMic = await startMic((chunk) => {
+        // Half duplex: ignore the mic while COSMO speaks, so it never hears itself (works without headphones).
+        if (mutedRef.current || playingRef.current) return
+        stt.send(chunk)
+      })
+      micRef.current = { stt, stopMic }
+      setMicOn(true)
+    } catch (error) {
+      stt.close()
+      appendMessages([{ type: 'error', message: `Microphone not available: ${error.message}` }])
+    }
+  }
+
+  function stopReceptionistMic() {
+    const current = micRef.current
+    micRef.current = null
+    setMicOn(false)
+    setHeardText('')
+    if (!current) return
+    current.stopMic()
+    current.stt.commit() // finish the last sentence, then close
+    setTimeout(() => current.stt.close(), 2000)
+  }
+
+  function toggleSound() {
+    if (isSpeaking) queueRef.current.stop()
+    setIsSpeaking(!isSpeaking)
+  }
+
+  async function startLiveCall() {
+    const name = fullName.trim()
+    const text = request.trim()
     setCallState('active')
-    setActiveMode('live')
-    setReplyIndex(-1)
-    setMessages(payload.messages.map((message, index) => ({ ...message, id: `${payload.call_id}-${index}` })))
-    setStatusMessage('Starting the receptionist audio connection…')
-    playbackRef.current = new PlaybackQueue()
-    payload.messages.forEach((message) => {
-      if (message.speaker === 'agent' && speakingRef.current) {
-        playbackRef.current.enqueue({
-          text: message.original_text,
-          language: message.source_language,
-          audio_b64: message.audio_b64,
-          mime: message.audio_mime,
-        })
-      }
-    })
-
-    const socketUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws/calls/${payload.call_id}`
-    const socket = new WebSocket(socketUrl)
-    socket.binaryType = 'arraybuffer'
-    let isReady = false
-    let isClosing = false
-    let resolveReady
-    let rejectReady
-    const ready = new Promise((resolve, reject) => {
-      resolveReady = resolve
-      rejectReady = reject
-    })
-    const readyTimeout = window.setTimeout(() => rejectReady(new Error('Timed out while connecting to the voice service.')), 15000)
-
-    socket.onmessage = (event) => {
-      const message = JSON.parse(event.data)
-      if (message.type === 'ready') {
-        isReady = true
-        window.clearTimeout(readyTimeout)
-        resolveReady(message)
-      } else if (message.type === 'transcript') {
-        const transcript = message.event
-        if (transcript.status === 'partial') {
-          setPartialTranscript(transcript.original_text)
-        } else {
-          setPartialTranscript('')
-          appendLiveMessage(transcript)
-        }
-      } else if (message.type === 'error') {
-        setStatusTone('error')
-        setStatusMessage(message.message)
-        if (!isReady) rejectReady(new Error(message.message))
-      }
+    setMessages([])
+    appendMessages([{ speaker: 'patient', full_name: name, language: 'English', original_text: text, translated_text: '' }])
+    sessionRef.current = `web-${Date.now()}`
+    try {
+      await createSession(USER_ID, sessionRef.current)
+    } catch (error) {
+      appendMessages([{ type: 'error', message: error.message }])
+      return
     }
-    socket.onerror = () => rejectReady(new Error('Could not connect to the voice service.'))
-    socket.onclose = () => {
-      window.clearTimeout(readyTimeout)
-      if (!isReady) rejectReady(new Error('The voice connection closed before setup completed.'))
-      if (!isClosing) {
-        setStatusTone('warning')
-        setStatusMessage('The receptionist audio connection closed.')
-      }
-    }
-    cleanupRef.current = () => {
-      isClosing = true
-      playbackRef.current?.stop()
-      socket.close()
-    }
-
-    const connection = await ready
-    setStatusMessage(
-      connection.stt_mode === 'mock'
-        ? 'Connected in scripted voice mode. Use the microphone and pause to advance the sample receptionist.'
-        : 'Connected. Speak Hungarian to the receptionist microphone; use headphones to avoid echo.',
-    )
-    setStatusTone('info')
-    const stopMic = await startMic((chunk) => {
-      if (socket.readyState === WebSocket.OPEN && !mutedRef.current) socket.send(chunk)
-    }, (level) => {
-      if (level > 0.16 && playbackRef.current?.playing) playbackRef.current.stop()
-    })
-    cleanupRef.current = () => {
-      isClosing = true
-      stopMic()
-      playbackRef.current?.stop()
-      socket.close()
-    }
+    await talkToAgent('patient', `My name is ${name}. ${text}`)
   }
 
-  async function startDemoCall(event) {
+  async function sendReceptionistLine(event) {
+    event.preventDefault()
+    const text = receptionistText.trim()
+    if (!text || isThinking) return
+    setReceptionistText('')
+    await handleReceptionistLine(text)
+  }
+
+  function startDemoCall(event) {
     event.preventDefault()
     if (!fullName.trim() || !request.trim()) return
-
-    if (mode === 'live') {
-      setIsStarting(true)
-      try {
-        await startLiveCall(fullName.trim(), request.trim())
-      } catch (error) {
-        cleanupRef.current()
-        setCallState('ready')
-        setStatusTone('error')
-        setStatusMessage(error.message || 'Could not start the live call.')
-      } finally {
-        setIsStarting(false)
-      }
+    if (isLive) {
+      startLiveCall()
       return
     }
 
-    setStatusMessage('')
-    setUrgentNotice(false)
-    setActiveMode('sample')
     setCallState('active')
     setReplyIndex(-1)
     setMessages([
@@ -326,22 +273,20 @@ function App() {
   }
 
   function endCall() {
-    cleanupRef.current()
-    cleanupRef.current = () => {}
+    stopReceptionistMic()
+    queueRef.current.stop()
     setCallState('ended')
     setIsMuted(false)
-    setPartialTranscript('')
   }
 
   function resetCall() {
-    cleanupRef.current()
-    cleanupRef.current = () => {}
+    stopReceptionistMic()
+    queueRef.current.stop()
     setCallState('ready')
     setMessages([])
     setReplyIndex(-1)
-    setPartialTranscript('')
-    setStatusMessage('')
-    setUrgentNotice(false)
+    setReceptionistText('')
+    sessionRef.current = null
   }
 
   return (
@@ -371,11 +316,12 @@ function App() {
 
         <div className="prototype-banner" role="note">
           <Icon name="shield" size={17} />
-          <span>
-            <strong>{mode === 'sample' ? 'Sample mode' : 'Live integration mode'}</strong>
-            {mode === 'sample'
-              ? ' — uses the built-in conversation samples; no personal information is sent.'
-              : ' — sends your name/request to the agent and microphone audio to configured speech services. The receptionist is simulated; no real clinic is called.'}
+          {isLive
+            ? <span><strong>Live agent</strong> — the real COSMO agent runs on your computer. The clinic call is a role-play: a teammate types or speaks the receptionist's Hungarian replies. No real clinic is contacted.</span>
+            : <span><strong>Sample data</strong> — this screen replays a scripted conversation. No agent, clinic call or appointment is involved.</span>}
+          <span className="mode-switch" role="group" aria-label="Demo mode">
+            <button type="button" className={isLive ? 'mode-switch--on' : ''} onClick={() => setMode('live')} disabled={isCallActive}>Live agent</button>
+            <button type="button" className={!isLive ? 'mode-switch--on' : ''} onClick={() => setMode('sample')} disabled={isCallActive}>Sample data</button>
           </span>
         </div>
 
@@ -387,26 +333,6 @@ function App() {
             </div>
 
             <form onSubmit={startDemoCall}>
-              <fieldset className="mode-choice">
-                <legend>Experience</legend>
-                <label>
-                  <input type="radio" name="experience" value="sample" checked={mode === 'sample'} onChange={() => setMode('sample')} disabled={isCallActive} />
-                  Sample conversation
-                </label>
-                <label>
-                  <input type="radio" name="experience" value="live" checked={mode === 'live'} onChange={() => setMode('live')} disabled={isCallActive} />
-                  Live agent + microphone
-                </label>
-                <p>
-                  {apiHealth?.status === 'offline'
-                    ? 'Local integration gateway is offline. Sample mode remains available.'
-                    : apiHealth?.agent_configured
-                      ? `Google key configured · STT ${apiHealth.stt_mode} · translation ${apiHealth.translation_mode} · TTS ${apiHealth.tts_mode}`
-                      : apiHealth
-                        ? 'Gateway is online; configure the Google API key to use live agent mode.'
-                        : 'Checking local integration services…'}
-                </p>
-              </fieldset>
               <label className="field-label" htmlFor="full-name">Your full name</label>
               <input
                 id="full-name"
@@ -441,9 +367,9 @@ function App() {
               </div>
 
               {!isCallActive && (
-                <button className="primary-button" type="submit" disabled={!fullName.trim() || !request.trim() || isStarting}>
+                <button className="primary-button" type="submit" disabled={!fullName.trim() || !request.trim()}>
                   <Icon name="phone" size={17} />
-                  {isStarting ? 'Connecting…' : `${callState === 'ended' ? 'Start another' : 'Start'} ${mode === 'live' ? 'live' : 'sample'} call`}
+                  {callState === 'ended' ? 'Start another demo call' : 'Start demo call'}
                   <Icon name="arrow" size={16} />
                 </button>
               )}
@@ -460,7 +386,7 @@ function App() {
               </div>
               <span className={`call-state call-state--${callState}`}>
                 <span />
-                {callState === 'active' ? (activeMode === 'live' ? 'LIVE SESSION' : 'SAMPLE CALL') : callState === 'ended' ? 'ENDED' : 'READY'}
+                {callState === 'active' ? 'DEMO CALL' : callState === 'ended' ? 'ENDED' : 'READY'}
               </span>
             </header>
 
@@ -472,16 +398,10 @@ function App() {
 
             <div className="conversation-heading">
               <span>Conversation</span>
-              <span className="live-label"><span /> {isCallActive ? (activeMode === 'live' ? 'CONNECTED' : 'SAMPLE') : 'READY'}</span>
+              <span className="live-label"><span /> {isCallActive ? 'LIVE DEMO' : 'SAMPLE'}</span>
             </div>
 
-            {statusMessage && <div className={`status-banner status-banner--${statusTone}`} role={statusTone === 'error' ? 'alert' : 'status'}>{statusMessage}</div>}
-            {urgentNotice && (
-              <div className="urgent-banner" role="alert">
-                Possible emergency language was detected. COSMO is not an emergency service. If anyone may be in immediate danger in Hungary, call 112.
-              </div>
-            )}
-            <div className="conversation-list" aria-live="polite" ref={conversationRef}>
+            <div className="conversation-list" aria-live="polite">
               {messages.length === 0 ? (
                 <div className="empty-conversation">
                   <span className="empty-icon"><Icon name="headphones" size={21} /></span>
@@ -491,6 +411,9 @@ function App() {
                 </div>
               ) : (
                 messages.map((message) => {
+                  if (message.type === 'error') {
+                    return <p className="message-error" role="alert" key={message.id}>⚠ {message.message}</p>
+                  }
                   const style = message.speaker === 'patient'
                     ? 'patient'
                     : message.speaker === 'receptionist'
@@ -514,29 +437,50 @@ function App() {
                       </div>
                       <p className="message-original">{message.original_text}</p>
                       {message.translated_text && <p className="message-translation"><Icon name="check" size={13} />{message.translated_text}</p>}
-                      {message.needs_clarification && (
-                        <p className="clarification-note">
-                          Please confirm this translation with the speaker.
-                          {message.clarification_reason ? ` ${message.clarification_reason}` : ''}
-                        </p>
-                      )}
                     </article>
                   )
                 })
               )}
-              {partialTranscript && <p className="partial-transcript">Receptionist (live preview): {partialTranscript}</p>}
+              {isThinking && <p className="message-thinking" aria-live="polite">COSMO is thinking…</p>}
             </div>
 
             {isCallActive && (
               <>
-                {activeMode === 'sample' && (
+                {isLive ? (
+                  <form className="receptionist-form" onSubmit={sendReceptionistLine}>
+                    <label className="field-label" htmlFor="receptionist-line">Receptionist (role-play, Hungarian)</label>
+                    <div className="receptionist-row">
+                      <input
+                        id="receptionist-line"
+                        type="text"
+                        lang="hu"
+                        value={receptionistText}
+                        onChange={(event) => setReceptionistText(event.target.value)}
+                        placeholder="Jó napot! Jövő kedden 15 órakor tudnék adni időpontot."
+                        disabled={isThinking}
+                      />
+                      <button type="submit" disabled={isThinking || !receptionistText.trim()}>Send</button>
+                    </div>
+                    <div className="voice-row">
+                      <button
+                        type="button"
+                        className={`control-button ${micOn ? 'control-button--active' : ''}`}
+                        onClick={micOn ? stopReceptionistMic : startReceptionistMic}
+                        aria-pressed={micOn}
+                      >
+                        <Icon name={micOn ? 'micOff' : 'mic'} size={16} />{micOn ? 'Stop receptionist mic' : 'Speak as receptionist'}
+                      </button>
+                      {micOn && <span className="voice-heard" lang="hu">{heardText ? `Hearing: ${heardText}` : 'Listening…'}</span>}
+                    </div>
+                  </form>
+                ) : (
                   <button className="simulate-button" type="button" onClick={addSimulatedReply}>Show next sample reply <Icon name="arrow" size={15} /></button>
                 )}
                 <footer className="call-controls">
-                  <button className={`control-button ${isMuted ? 'control-button--active' : ''}`} type="button" onClick={() => setIsMuted((muted) => !muted)} aria-pressed={isMuted} disabled={activeMode !== 'live'}>
+                  <button className={`control-button ${isMuted ? 'control-button--active' : ''}`} type="button" onClick={() => setIsMuted((muted) => !muted)} aria-pressed={isMuted}>
                     <Icon name={isMuted ? 'micOff' : 'mic'} size={18} />{isMuted ? 'Unmute' : 'Mute'}
                   </button>
-                  <button className={`control-button ${!isSpeaking ? 'control-button--active' : ''}`} type="button" onClick={() => setIsSpeaking((speaking) => !speaking)} aria-pressed={isSpeaking}>
+                  <button className={`control-button ${!isSpeaking ? 'control-button--active' : ''}`} type="button" onClick={toggleSound} aria-pressed={isSpeaking}>
                     <Icon name="volume" size={18} />{isSpeaking ? 'Sound on' : 'Sound off'}
                   </button>
                   <button className="end-button" type="button" onClick={endCall}><Icon name="phone" size={17} /> End demo</button>
@@ -546,7 +490,11 @@ function App() {
           </section>
         </div>
 
-        <footer className="page-footer"><Icon name="shield" size={14} /> No real clinic is called. Live mode sends your name/request and microphone audio to configured services; confirmed appointments may create a local calendar file.</footer>
+        <footer className="page-footer"><Icon name="shield" size={14} />
+          {isLive
+            ? ' Demo only — use a fictional name. Messages go to the local agent and Google Gemini; nothing is sent to a clinic.'
+            : ' Demo only — no personal information is sent or saved.'}
+        </footer>
       </main>
     </div>
   )

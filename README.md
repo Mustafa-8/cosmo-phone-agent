@@ -9,38 +9,24 @@ International students in Hungary often need to handle everyday tasks by phone, 
 The student tells COSMO in English what they need, for example *"Book me a dentist next week, in the afternoon."* COSMO then:
 
 1. Picks a suitable clinic from the project's mock Budapest clinic data.
-2. Starts a simulated receptionist conversation in Hungarian. Its first sentence says that it is an AI assistant calling on the student's behalf.
-3. Negotiates a time slot in a live conversation.
-4. Adds the confirmed appointment to the student's calendar.
+2. Starts a simulated receptionist conversation in Hungarian. A teammate plays the receptionist through the microphone or by typing.
+3. Negotiates a time slot and checks it against the requested time window and clinic hours.
+4. Adds the appointment to the student's calendar only after receptionist confirmation.
 5. Sends the student a short summary in English.
 
-If the receptionist refuses to speak to an AI, COSMO can tell the student to
-join the conversation. A live transfer and full two-way interpreter are not
-implemented in this prototype.
+If the receptionist refuses to speak to an AI, present the refusal as a scripted scenario. There is no real phone call or live human transfer.
 
-**Hackathon MVP:** one task, booking a clinic appointment. A teammate plays
-the receptionist through the microphone; no real phone call or clinic contact
-is made.
-**Phase 2:** a general two-way live translation mode.
+**Hackathon MVP:** one task, booking a clinic appointment. The receptionist is simulated; no real clinic is contacted.
 
 ## Architecture
 ```
-Student (English form)
-   → React frontend
-   → Local FastAPI integration gateway
-   → ADK API server (Gemini agent and booking tools)
-
-Receptionist (Hungarian, browser microphone)
-   → Local FastAPI integration gateway
-   → Speech-to-text (ElevenLabs Scribe or scripted mock)
-   → ADK agent → Hungarian speech (ElevenLabs TTS or browser speech)
-   → React transcript with English receptionist translation
+Student (English request) → React frontend → ADK API server (port 8000)
+Receptionist (Hungarian, browser mic)
+   → React frontend → voice bridge (FastAPI, port 8001)
+   → STT → committed transcript to ADK agent → TTS
+   → React transcript, English subtitles, and audio playback
 ```
-
-The receptionist is simulated by a teammate; no real clinic is called. Sample
-mode remains available without the agent or microphone. Live mode sends the
-entered name and request to the configured agent and can create a local `.ics`
-file after the agent confirms a booking.
+The browser sends only committed receptionist transcripts to the agent. English translations are display aids; the original transcript is sent unchanged. The sample-data mode remains available without the agent or voice services.
 
 ## Agent tools
 The model decides what to do; plain Python computes and checks. Every tool returns a `dict` with a `status` field.
@@ -59,8 +45,8 @@ Messages to the agent are tagged with the speaker: `[patient|en] ...` or `[recep
 | Layer | Tool |
 |---|---|
 | Agent | Google ADK, Gemini `gemini-3.5-flash-lite` |
-| Backend API | Google ADK API server plus local FastAPI integration gateway |
-| Voice | ElevenLabs Scribe (STT) and TTS |
+| Agent API | `adk api_server` (port 8000) |
+| Voice bridge | FastAPI (`voice.server`, port 8001), ElevenLabs Scribe and TTS, Gemini translation |
 | Frontend | React |
 | Calendar | `.ics` file generated in Python |
 
@@ -72,10 +58,9 @@ Messages to the agent are tagged with the speaker: `[patient|en] ...` or `[recep
 | 3 | Redha Ali Hussein Hasan Al-Ashwal | Frontend | React interface, live transcript, call controls, language selection |
 | 4 | Moises Raul Raunde | Integration & product | Integrating all parts, Hungarian pronunciation tests, demo scenario, presentation |
 
-Full plan and timeline: [phone-agent-plan.md](phone-agent-plan.md)
+Full plan and timeline: [phone-agent-plan.md](phone-agent-plan.md).
 
-Developer 4's demo scenarios, Hungarian voice checks, integration rehearsal
-checklist, and presentation outline: [docs/dev4-demo-runbook.md](docs/dev4-demo-runbook.md)
+Demo scenarios and rehearsal checks: [docs/dev4-demo-runbook.md](docs/dev4-demo-runbook.md).
 
 ## Setup
 Requires Python 3.10+.
@@ -83,43 +68,33 @@ Requires Python 3.10+.
 ```bash
 git clone https://github.com/Mustafa-8/cosmo-phone-agent.git
 cd cosmo-phone-agent
-python -m venv .venv
+python3 -m venv .venv
+source .venv/bin/activate        # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+cp .env.example .env             # then fill in your own keys
 ```
 
-Activate the environment (`.venv\Scripts\Activate.ps1` in Windows PowerShell,
-or `source .venv/bin/activate` on macOS/Linux), then install the dependencies:
-
-```powershell
-python -m pip install -r requirements.txt
-Copy-Item .env.example .env
-```
-
-Add your own keys to `.env`. Keep it local and use fictional patient details
-during testing.
-
-Start three terminals from the repository root:
+Start these services in separate terminals from the repository root:
 
 ```bash
-adk api_server
-python -m uvicorn phone_agent.integration:app --host 127.0.0.1 --port 8001
+adk api_server --allow_origins http://localhost:5173
+uvicorn voice.server:app --port 8001
 cd frontend
 npm ci
 npm run dev
 ```
 
-Open the Vite URL (normally `http://localhost:5173`). The frontend proxies its
-API and WebSocket traffic to the local integration gateway; the gateway talks
-to the ADK server. Select **Sample conversation** to use the built-in replies,
-or **Live agent + microphone** to use configured services. For mock voice
-testing, set `STT_MODE=mock`, `TRANSLATE_MODE=mock`, and `TTS_MODE=mock`. Live
-agent mode still requires a valid Google API key and a running ADK server.
-Use headphones when testing audio to reduce microphone echo.
+- Vite 8 requires Node.js 20.19+ or 22.12+.
+- `--allow_origins` allows the browser (Vite on port 5173) to call the ADK API on port 8000.
+- After changing agent code, **restart** the server and start a **new session** before testing.
+- If `adk web` fails with `_make_subprocess_transport NotImplementedError`, run `adk web --no-reload`.
 
-Install test dependencies and run the offline tests (no provider calls or keys):
+Open the Vite URL, select **Live agent**, start a call, and use **Speak as receptionist** for the Hungarian role-play. Typed receptionist replies remain available. **Sample data** works without provider keys or backend services. The voice server keeps provider keys on the backend; use fictional patient details only.
 
-```powershell
-py -m pip install -r requirements-dev.txt
-py -m pytest tests voice/tests
+Run the offline tests (mock mode; no provider calls):
+
+```bash
+python -m pytest tests voice/tests
 cd frontend
 npm run lint
 npm run build
@@ -127,8 +102,7 @@ npm run build
 
 ## Free-tier limits
 - `gemini-3.5-flash-lite` on the free tier allows **15 requests per minute per Google project**. One booking call uses about 8–10 requests, because every tool step is a request.
-- Optionally set `TRANSLATION_GOOGLE_API_KEY` from a separate Google project so
-  translation does not share the agent's quota.
+- Use API keys from **different Google projects** for the agent and for the voice layer's translation, so they don't share one quota.
 - During rehearsals, wait about a minute between full test calls. A `429 RESOURCE_EXHAUSTED` in the server log means the quota ran out.
 
 ## Frontend
@@ -137,19 +111,14 @@ The React interface for the student appointment-booking flow is in `frontend/`.
 
 ```bash
 cd frontend
-npm ci
+npm install
 npm run dev
 ```
 
-The frontend supports sample data and an opt-in live agent/audio mode. The live
-mode uses the local integration gateway and does not place real clinic calls.
-In live mode, the student's name and request are sent to the configured agent.
-Confirmed appointments may create a local `.ics` file in the git-ignored
-`bookings/` directory. Do not use real patient information.
+The frontend supports both the live ADK/voice flow and sample data. The live clinic conversation remains a role-play and does not place a phone call. Do not enter real personal or medical information.
 
 ## Rules for contributors
 - Never commit `.env` or paste keys in chat. Only `.env.example` (variable names) is committed.
 - Work on your own branch (`<name>/<feature>`), pull before you push.
 - Nobody pushes to `main` directly. Open a pull request and wait for the leader's review; the leader merges.
 - Every agent tool has type hints and a precise docstring, and returns a `dict` with a `status` field.
-- Live integration is for a simulated receptionist only; it is not a real clinic or emergency service.

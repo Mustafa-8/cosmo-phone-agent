@@ -6,22 +6,42 @@ Use fictional details only.
 
 ## Current demo boundary
 
-The frontend has two paths: sample mode keeps the **Show next sample reply**
-demo, and the integration branch adds a live-agent path through
-`phone_agent/integration.py`. The gateway connects the browser microphone to
-STT, translation, and the ADK agent; audio is returned to the browser for
-playback. Confirm this integration is present in the branch being rehearsed;
-it is not part of `main` until the integration PR is reviewed and merged.
+The live experience uses the React frontend, ADK API server, and the voice
+bridge in `voice/server.py`. The browser sends finished receptionist
+transcripts to the agent; partial transcripts are UI previews. The bridge
+handles speech recognition, spoken replies, and subtitle translation. Sample
+data remains available when services or provider credentials are unavailable.
 
-In mock voice mode the microphone activity triggers scripted booking replies;
-it does not recognize actual speech. A live provider run needs team-owned
-credentials. Neither mode calls a real clinic or places a telephone call.
+The receptionist is a teammate role-playing a clinic. No mode places a real
+telephone call or contacts a real clinic. A refusal can be demonstrated as a
+scenario, but do not claim a live human transfer occurred. Calendar events are
+created only after the agent receives receptionist confirmation.
 
-The agent includes clinic lookup, time-window resolution, slot checking,
-speech output, and calendar-event creation. Calendar events are written only
-after receptionist confirmation. A live human handoff tool is not available;
-present the refusal path as a scripted scenario unless it has been separately
-implemented and verified.
+## Start the demo
+
+From the repository root, use three terminals:
+
+```powershell
+# Terminal 1: agent API
+adk api_server --allow_origins http://localhost:5173
+```
+
+```powershell
+# Terminal 2: voice bridge
+uvicorn voice.server:app --port 8001
+```
+
+```powershell
+# Terminal 3: frontend
+cd frontend
+npm ci
+npm run dev
+```
+
+Open the Vite URL, select **Live agent**, start a call, and use **Speak as
+receptionist** or type a receptionist reply. Use **Sample data** and **Show
+next sample reply** for a standalone demo. Vite 8 requires Node.js 20.19+ or
+22.12+.
 
 ## Demo setup
 
@@ -99,19 +119,22 @@ in the demo notes. Never use real patient information.
 
 - [ ] Start the agent API and verify a text request can create an ADK session and
   return agent speech events in the agreed contract format.
-- [ ] Start the integration gateway and verify a browser live session connects
-  to the agent API.
+- [ ] Start the voice bridge and verify `GET http://localhost:8001/health`
+  responds.
+- [ ] Verify a browser live session connects to both the ADK API and voice
+  bridge.
 - [ ] Verify partial transcripts remain UI-only; only committed patient or
   receptionist transcripts reach the agent.
 - [ ] Verify agent messages are routed by `to`: Hungarian to the receptionist
   and English to the patient.
-- [ ] Verify speech output speaks the exact `original_text` in
-  `source_language`; do not paraphrase medical details.
+- [ ] Verify speech output speaks the exact `original_text` in the message's
+  language; do not paraphrase medical details.
 - [ ] Verify the microphone stream is 16 kHz, mono, signed PCM16 and that
   stopping or muting the microphone stops further chunks.
-- [ ] Verify the browser audio worklet is served at `/pcm-worklet.js`, and test
-  playback interruption with headphones to avoid echo.
-- [ ] Run both scenarios above in mock mode before using provider credentials.
+- [ ] Verify the browser audio worklet is served at `/pcm-worklet.js`, and check
+  that the microphone is ignored while COSMO is speaking.
+- [ ] Run sample-data mode before using provider credentials; exercise mock
+  voice modes where configured.
 - [ ] Test real STT, translation, and TTS only with team-owned credentials in a
   local `.env`; never put keys in frontend environment variables or commit
   them.

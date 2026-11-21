@@ -95,6 +95,18 @@ for t in contract clinics time_window slots calendar_event; do python -m tests.t
 - Use API keys from **different Google projects** for the agent and for the voice layer's translation, so they don't share one quota.
 - During rehearsals, wait about a minute between full test calls. A `429 RESOURCE_EXHAUSTED` in the server log means the quota ran out.
 
+## Frontend
+
+The React interface for the student appointment-booking flow is in `frontend/`.
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+The current frontend is a simulated prototype. It does not connect to the ADK agent or live voice services yet; agree on the API and audio contracts before integrating them.
+
 ## Rules for contributors
 - Never commit `.env` or paste keys in chat. Only `.env.example` (variable names) is committed.
 - Work on your own branch (`<name>/<feature>`), pull before you push.

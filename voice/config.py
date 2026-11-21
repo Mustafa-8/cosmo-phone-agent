@@ -46,7 +46,7 @@ class Settings:
     tts_output_format: str = field(default_factory=lambda: os.getenv("TTS_OUTPUT_FORMAT", "mp3_44100_128"))
     tts_send_language_code: bool = field(default_factory=lambda: _bool("TTS_SEND_LANGUAGE_CODE", True))
     voice_id_en: str = field(default_factory=lambda: os.getenv("VOICE_ID_EN", "JBFqnCBsd6RMkjVDRZzb"))
-    voice_id_hu: str = field(default_factory=lambda: os.getenv("VOICE_ID_HU", "21m00Tcm4TlvDq8ikWAM"))
+    voice_id_hu: str = field(default_factory=lambda: os.getenv("VOICE_ID_HU", "rlxsbADLInnFyRAXDQLB"))
     voice_id_default: str = field(default_factory=lambda: os.getenv("VOICE_ID_DEFAULT", "JBFqnCBsd6RMkjVDRZzb"))
 
     # Gemini translation. gemini-2.5-flash is closed to new users; flash-lite answers in about 1 s.

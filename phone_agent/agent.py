@@ -1,5 +1,6 @@
 from google.adk.agents import Agent
 
+from .tools.calendar_event import create_calendar_event
 from .tools.clinics import find_clinics
 from .tools.slots import check_slot
 from .tools.speech import say
@@ -22,6 +23,9 @@ Every message starts with a tag: "[speaker|language] text".
 - You may call `say` more than once in one turn (for example: first tell the
   patient you are calling, then greet the receptionist). Make all `say` calls
   together at the end of your turn; your turn ends after them.
+- EVERY turn must end with at least one `say` call. Never end a turn silently.
+- Never call `say` in the same step as another tool. Call the other tools
+  first, wait for their results, then call `say` using those results.
 
 ## Tools
 - `find_clinics(specialty, district)`: find a real clinic from our list.
@@ -29,6 +33,8 @@ Every message starts with a tag: "[speaker|language] text".
   real dates and hours. Never calculate dates yourself.
 - `check_slot(clinic_id, slot_start, when, part_of_day)`: check a time the
   receptionist offers. Never decide yourself whether a slot fits.
+- `create_calendar_event(clinic_id, slot_start, duration_min, patient_name, notes)`:
+  save the confirmed appointment to the patient's calendar.
 - `say(to, text)`: speak to the patient or the receptionist.
 
 ## Call flow
@@ -43,9 +49,12 @@ Every message starts with a tag: "[speaker|language] text".
    of calling. Then tell the patient in English which clinic you are
    calling (name and address) and which dates you will ask for, and greet the
    receptionist.
-2. Your FIRST sentence to the receptionist must say that you are an AI
-   assistant calling on behalf of a student. Then state the request
-   (type of doctor, and the dates and hours from `resolve_time_window`).
+2. Your FIRST message to the receptionist is in Hungarian and starts with
+   exactly this sentence:
+   "Jó napot kívánok! A COSMO mesterséges intelligencia asszisztense vagyok, és egy diák nevében telefonálok."
+   Then, still in Hungarian, state the request (type of doctor, and the dates
+   and hours from `resolve_time_window`). Never speak English to the
+   receptionist.
 3. Negotiate a time slot with the receptionist. Every time the receptionist
    offers a time, first call `check_slot` with the clinic id, the offered time
    as "YYYY-MM-DDTHH:MM" (date taken from the windows), and the same `when` and
@@ -57,12 +66,22 @@ Every message starts with a tag: "[speaker|language] text".
    details), ask the patient in English AND, in the same turn, ask the
    receptionist in Hungarian to hold on a moment. Never invent personal data,
    and never ask the patient questions the receptionist did not ask.
-5. When the receptionist confirms the booking or says goodbye, the call is
-   OVER: do not ask anyone any more questions. In that same turn, thank the
-   receptionist and say goodbye in Hungarian, then send the patient a short English summary: clinic, address, weekday and full
-   date (from the windows, e.g. "Tuesday 24 November 2026"), time, and anything
-   they must bring. If the receptionist asked for something you could not give
-   (for example the patient's name), say so in the summary.
+   When you accept a slot, do NOT book it yet and do NOT say goodbye: say yes
+   to the receptionist (and give the patient's name if asked), then wait for
+   the receptionist to confirm.
+5. When the receptionist confirms the booking (e.g. "rögzítettem",
+   "lefoglaltam", "rendben, várjuk") or says goodbye, the call is OVER: do not
+   ask anyone any more questions. In that turn:
+   a. If a slot was accepted (check_slot fits=true) and not booked yet, call
+      `create_calendar_event` ALONE first, with that clinic id, slot_start,
+      the duration the receptionist said (30 if not said), the patient's name,
+      and short English notes (e.g. what to bring). Wait for its result.
+   b. Then thank the receptionist and say goodbye in Hungarian.
+   c. And send the patient a short English summary: clinic, address, the
+      exact "date_long" and "time" from create_calendar_event's "summary", what
+      to bring, and that the appointment was added to their calendar.
+   If the call is already over and someone speaks again, reply with one short
+   polite `say` and do not book again.
 6. If the receptionist refuses to talk to an AI, apologise to the receptionist,
    then tell the patient in English that they need to join the call and that
    you will interpret for them.
@@ -73,5 +92,5 @@ root_agent = Agent(
     model="gemini-3.5-flash-lite",
     description="Books clinic appointments by phone in Hungarian for international students.",
     instruction=INSTRUCTION,
-    tools=[find_clinics, resolve_time_window, check_slot, say],
+    tools=[find_clinics, resolve_time_window, check_slot, create_calendar_event, say],
 )

@@ -7,3 +7,5 @@ __pycache__/
 bookings/
 # Generated speech test files
 *.mp3
+# Integration script reports and generated audio
+output/

@@ -1,0 +1,3 @@
+# Extra packages for the integration scripts (integration/scripts).
+# Everything else comes from the repo-root requirements.txt.
+requests>=2.31

@@ -1,32 +1,48 @@
 # COSMO Frontend
 
-React UI prototype for COSMO's clinic-appointment booking MVP.
+React UI for COSMO's simulated clinic-booking conversation.
 
 ## What is included
 
-- Required student full name and appointment request form
-- English-only student language selection and fixed Hungarian clinic language
-- Simulated call panel with original Hungarian speech and English translations
-- Distinct patient, receptionist, agent-to-receptionist, and agent-to-patient message data
-- Demo microphone, audio, and end-call controls
-- Responsive layout for desktop and mobile
+- Required student name and appointment request form
+- Live-agent and sample-data modes
+- Receptionist role-play by typing or browser microphone
+- Hungarian speech recognition, English subtitles, and spoken agent replies through the voice bridge
+- Call controls, status and error feedback, and a responsive desktop/mobile layout
 
-Conversation messages use `speaker`, `original_text`, and `translated_text`. Agent messages also include `to: "receptionist"` for Hungarian call speech or `to: "patient"` for English student updates. The patient request includes `full_name`.
+The browser sends finished receptionist transcripts to the ADK agent. Partial
+transcripts are previews only. No real clinic is contacted and no telephone
+call or live transfer is made.
 
 ## Run locally
 
+Start the ADK API and voice bridge from the repository root in separate
+terminals:
+
 ```powershell
-npm install
+adk api_server --allow_origins http://localhost:5173
+uvicorn voice.server:app --port 8001
+```
+
+Then start Vite:
+
+```powershell
+npm ci
 npm run dev
 ```
 
-Open the local URL printed by Vite. Enter a full name, submit the sample appointment request to start a simulated call, then use **Show next sample reply** to advance through the receptionist and agent examples, including a sample English booking update.
+Use Node.js 20.19+ or 22.12+ for Vite 8. Open the local URL, select **Live
+agent**, start a call, and use **Speak as receptionist** or type a receptionist
+reply. Choose **Sample data** to run the conversation without the agent or
+voice services, then use **Show next sample reply**.
 
-## Prototype limitations
+The default service URLs are `http://localhost:8000` for ADK and
+`http://localhost:8001` for the voice bridge. Optional `VITE_AGENT_URL` and
+`VITE_VOICE_URL` values configure them; never put provider secrets in frontend
+variables.
 
-This frontend currently uses local sample data. It does not make clinic calls, capture microphone audio, run speech recognition, use text-to-speech, contact the ADK agent, or create calendar events. Do not enter real personal or medical information into this demo.
-
-The API and voice integration should be added after agreeing on the request/response format with Developers 1 and 2. Configure service URLs through Vite environment variables; never place provider secrets in frontend variables.
+Use fictional patient details only. Translation subtitles are a convenience
+and are not verified medical advice.
 
 ## Checks
 

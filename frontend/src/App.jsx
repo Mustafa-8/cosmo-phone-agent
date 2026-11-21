@@ -1,5 +1,8 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import './App.css'
+import { createSession, sendToAgent } from './agentApi'
+
+const USER_ID = 'student-web'
 
 const languages = [
   { code: 'en', name: 'English' },
@@ -92,12 +95,61 @@ function App() {
   const [isSpeaking, setIsSpeaking] = useState(true)
   const [replyIndex, setReplyIndex] = useState(-1)
   const [messages, setMessages] = useState([])
+  const [mode, setMode] = useState('live') // 'live' = real ADK agent, 'sample' = scripted demo data
+  const [isThinking, setIsThinking] = useState(false)
+  const [receptionistText, setReceptionistText] = useState('')
+  const sessionRef = useRef(null)
+  const nextId = useRef(100)
 
   const isCallActive = callState === 'active'
+  const isLive = mode === 'live'
+
+  function appendMessages(newMessages) {
+    setMessages((current) => [
+      ...current,
+      ...newMessages.map((message) => ({ ...message, id: nextId.current++ })),
+    ])
+  }
+
+  async function talkToAgent(speaker, text) {
+    setIsThinking(true)
+    const replies = await sendToAgent(USER_ID, sessionRef.current, speaker, text)
+    setIsThinking(false)
+    appendMessages(replies)
+  }
+
+  async function startLiveCall() {
+    const name = fullName.trim()
+    const text = request.trim()
+    setCallState('active')
+    setMessages([])
+    appendMessages([{ speaker: 'patient', full_name: name, language: 'English', original_text: text, translated_text: '' }])
+    sessionRef.current = `web-${Date.now()}`
+    try {
+      await createSession(USER_ID, sessionRef.current)
+    } catch (error) {
+      appendMessages([{ type: 'error', message: error.message }])
+      return
+    }
+    await talkToAgent('patient', `My name is ${name}. ${text}`)
+  }
+
+  async function sendReceptionistLine(event) {
+    event.preventDefault()
+    const text = receptionistText.trim()
+    if (!text || isThinking) return
+    setReceptionistText('')
+    appendMessages([{ speaker: 'receptionist', language: 'Hungarian', original_text: text, translated_text: '' }])
+    await talkToAgent('receptionist', text)
+  }
 
   function startDemoCall(event) {
     event.preventDefault()
     if (!fullName.trim() || !request.trim()) return
+    if (isLive) {
+      startLiveCall()
+      return
+    }
 
     setCallState('active')
     setReplyIndex(-1)
@@ -148,6 +200,8 @@ function App() {
     setCallState('ready')
     setMessages([])
     setReplyIndex(-1)
+    setReceptionistText('')
+    sessionRef.current = null
   }
 
   return (
@@ -177,7 +231,13 @@ function App() {
 
         <div className="prototype-banner" role="note">
           <Icon name="shield" size={17} />
-          <span><strong>Prototype mode</strong> — this screen uses sample data. No real clinic call or appointment is made.</span>
+          {isLive
+            ? <span><strong>Live agent</strong> — the real COSMO agent runs on your computer. The clinic call is a role-play: a teammate types the receptionist's Hungarian replies. No real clinic is contacted.</span>
+            : <span><strong>Sample data</strong> — this screen replays a scripted conversation. No agent, clinic call or appointment is involved.</span>}
+          <span className="mode-switch" role="group" aria-label="Demo mode">
+            <button type="button" className={isLive ? 'mode-switch--on' : ''} onClick={() => setMode('live')} disabled={isCallActive}>Live agent</button>
+            <button type="button" className={!isLive ? 'mode-switch--on' : ''} onClick={() => setMode('sample')} disabled={isCallActive}>Sample data</button>
+          </span>
         </div>
 
         <div className="workflow-grid">
@@ -266,6 +326,9 @@ function App() {
                 </div>
               ) : (
                 messages.map((message) => {
+                  if (message.type === 'error') {
+                    return <p className="message-error" role="alert" key={message.id}>⚠ {message.message}</p>
+                  }
                   const style = message.speaker === 'patient'
                     ? 'patient'
                     : message.speaker === 'receptionist'
@@ -293,11 +356,30 @@ function App() {
                   )
                 })
               )}
+              {isThinking && <p className="message-thinking" aria-live="polite">COSMO is thinking…</p>}
             </div>
 
             {isCallActive && (
               <>
-                <button className="simulate-button" type="button" onClick={addSimulatedReply}>Show next sample reply <Icon name="arrow" size={15} /></button>
+                {isLive ? (
+                  <form className="receptionist-form" onSubmit={sendReceptionistLine}>
+                    <label className="field-label" htmlFor="receptionist-line">Receptionist (role-play, Hungarian)</label>
+                    <div className="receptionist-row">
+                      <input
+                        id="receptionist-line"
+                        type="text"
+                        lang="hu"
+                        value={receptionistText}
+                        onChange={(event) => setReceptionistText(event.target.value)}
+                        placeholder="Jó napot! Jövő kedden 15 órakor tudnék adni időpontot."
+                        disabled={isThinking}
+                      />
+                      <button type="submit" disabled={isThinking || !receptionistText.trim()}>Send</button>
+                    </div>
+                  </form>
+                ) : (
+                  <button className="simulate-button" type="button" onClick={addSimulatedReply}>Show next sample reply <Icon name="arrow" size={15} /></button>
+                )}
                 <footer className="call-controls">
                   <button className={`control-button ${isMuted ? 'control-button--active' : ''}`} type="button" onClick={() => setIsMuted((muted) => !muted)} aria-pressed={isMuted}>
                     <Icon name={isMuted ? 'micOff' : 'mic'} size={18} />{isMuted ? 'Unmute' : 'Mute'}
@@ -312,7 +394,11 @@ function App() {
           </section>
         </div>
 
-        <footer className="page-footer"><Icon name="shield" size={14} /> Demo only — no personal information is sent or saved.</footer>
+        <footer className="page-footer"><Icon name="shield" size={14} />
+          {isLive
+            ? ' Demo only — use a fictional name. Messages go to the local agent and Google Gemini; nothing is sent to a clinic.'
+            : ' Demo only — no personal information is sent or saved.'}
+        </footer>
       </main>
     </div>
   )

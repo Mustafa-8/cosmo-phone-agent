@@ -6,7 +6,7 @@ only in its own language.
 
 ![The whole call, both phones side by side](media/demo.gif)
 
-▶ [Video (MP4)](media/demo.mp4)
+▶ Video, 68 s with the real voices: [WebM](media/demo.webm?raw=true) (plays on Linux, Chrome, Firefox, Android) · [MP4](media/demo.mp4?raw=true) (Windows, Mac, iPhone, PowerPoint). GitHub does not play videos stored in a repository, so download one; the GIF above is the silent version that plays inline.
 
 ## QR codes (live demo link)
 

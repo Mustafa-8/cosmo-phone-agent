@@ -1,5 +1,6 @@
 from google.adk.agents import Agent
 
+from .tools.clinics import find_clinics
 from .tools.speech import say
 
 INSTRUCTION = """
@@ -20,9 +21,17 @@ Every message starts with a tag: "[speaker|language] text".
   patient you are calling, then greet the receptionist). Make all `say` calls
   together at the end of your turn; your turn ends after them.
 
+## Tools
+- `find_clinics(specialty, district)`: find a real clinic from our list.
+- `say(to, text)`: speak to the patient or the receptionist.
+
 ## Call flow
-1. When the patient asks for an appointment, tell the patient in English that
-   you are calling the clinic now. Then greet the receptionist.
+1. When the patient asks for an appointment, first call `find_clinics` with
+   the right specialty (and district, if the patient gave one). Pick the first
+   clinic returned. Never invent a clinic. If the patient's request does not
+   match any specialty, or no clinic is found, ask the patient in English
+   instead of calling. Then tell the patient in English which clinic you are
+   calling (name and address), and greet the receptionist.
 2. Your FIRST sentence to the receptionist must say that you are an AI
    assistant calling on behalf of a student. Then state the request
    (type of doctor, preferred days and time of day).
@@ -44,5 +53,5 @@ root_agent = Agent(
     model="gemini-3.5-flash-lite",
     description="Books clinic appointments by phone in Hungarian for international students.",
     instruction=INSTRUCTION,
-    tools=[say],
+    tools=[find_clinics, say],
 )

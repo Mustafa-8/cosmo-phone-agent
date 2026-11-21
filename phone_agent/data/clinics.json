@@ -1,0 +1,38 @@
+[
+  {
+    "id": "dental-plus-vi",
+    "name": "Dental Plus Fogászat",
+    "specialty": "dentist",
+    "district": "VI",
+    "address": "1061 Budapest, Király utca 10.",
+    "phone": "+36 1 555 0101",
+    "opening_hours": {"mon": "08:00-18:00", "tue": "08:00-18:00", "wed": "08:00-18:00", "thu": "08:00-18:00", "fri": "08:00-14:00"}
+  },
+  {
+    "id": "buda-smile-xi",
+    "name": "Buda Smile Dental",
+    "specialty": "dentist",
+    "district": "XI",
+    "address": "1117 Budapest, Bartók Béla út 45.",
+    "phone": "+36 1 555 0102",
+    "opening_hours": {"mon": "10:00-19:00", "tue": "10:00-19:00", "wed": "10:00-19:00", "thu": "10:00-19:00", "fri": "10:00-16:00"}
+  },
+  {
+    "id": "pest-health-viii",
+    "name": "Pest Health Háziorvosi Rendelő",
+    "specialty": "general_practitioner",
+    "district": "VIII",
+    "address": "1085 Budapest, Üllői út 26.",
+    "phone": "+36 1 555 0103",
+    "opening_hours": {"mon": "08:00-12:00", "tue": "14:00-18:00", "wed": "08:00-12:00", "thu": "14:00-18:00", "fri": "08:00-12:00"}
+  },
+  {
+    "id": "derma-center-v",
+    "name": "Derma Center Bőrgyógyászat",
+    "specialty": "dermatologist",
+    "district": "V",
+    "address": "1051 Budapest, Nádor utca 8.",
+    "phone": "+36 1 555 0104",
+    "opening_hours": {"mon": "09:00-17:00", "tue": "09:00-17:00", "wed": "09:00-17:00", "thu": "09:00-17:00", "fri": "09:00-13:00"}
+  }
+]

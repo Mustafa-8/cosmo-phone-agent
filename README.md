@@ -8,33 +8,32 @@ International students in Hungary often need to handle everyday tasks by phone, 
 ## What it does
 The student tells COSMO in English what they need, for example *"Book me a dentist next week, in the afternoon."* COSMO then:
 
-1. Picks a suitable clinic.
-2. Calls the receptionist and speaks Hungarian. Its first sentence says that it is an AI assistant calling on the student's behalf.
-3. Negotiates a time slot in a live conversation.
-4. Adds the confirmed appointment to the student's calendar.
+1. Picks a suitable clinic from the project's mock Budapest clinic data.
+2. Calls the receptionist in Hungarian. Its first sentence says that it is an AI assistant calling on the student's behalf. In the demo a teammate plays the receptionist through the microphone or by typing.
+3. Negotiates a time slot and checks it against the requested time window and clinic hours.
+4. Adds the appointment to the student's calendar only after receptionist confirmation.
 5. Sends the student a short summary in English.
 
-If the receptionist does not want to talk to an AI, COSMO brings the student onto the call and acts as a live interpreter.
+**Hackathon MVP:** one task, booking a clinic appointment. The receptionist is simulated; no real clinic is contacted and no phone call is placed. If the receptionist refuses to speak to an AI, COSMO tells the student to join the call; today this is shown as a scripted scenario, with no live transfer.
 
-**Hackathon MVP:** one task, booking a clinic appointment. The call is simulated: a teammate plays the receptionist through the microphone.
-**Phase 2:** a general two-way live translation mode.
+**Future work:** real phone calls, a live handoff where COSMO brings the student onto the call as an interpreter, and a general two-way live translation mode.
 
 ## Architecture
 ```
-Receptionist (Hungarian, mic)
-   → Speech-to-text (ElevenLabs Scribe)
-   → COSMO agent (Google ADK + Gemini): decides, calls tools, replies in Hungarian
-   → Text-to-speech (ElevenLabs)
-   → Frontend (React): live transcript and call controls
+Student (English request) → React frontend → ADK API server (port 8000)
+Receptionist (Hungarian, browser mic)
+   → React frontend → voice bridge (FastAPI, port 8001)
+   → STT → committed transcript to ADK agent → TTS
+   → React transcript, English subtitles, and audio playback
 ```
-The agent works on **text in, text out**. Voice and frontend sit around it, so each part can be built and tested on its own.
+The agent works on **text in, text out**; voice and frontend sit around it, so each part can be built and tested on its own. The browser sends only committed receptionist transcripts to the agent. English translations are display aids; the original transcript is sent unchanged. The sample-data mode remains available without the agent or voice services.
 
 ## Agent tools
 The model decides what to do; plain Python computes and checks. Every tool returns a `dict` with a `status` field.
 
 | Tool | What Python does |
 |---|---|
-| `find_clinics(specialty, district)` | Picks a real clinic from `phone_agent/data/clinics.json` (4 mock Budapest clinics) |
+| `find_clinics(specialty, district)` | Picks a matching mock clinic from `phone_agent/data/clinics.json` |
 | `resolve_time_window(when, part_of_day)` | Turns "next week, afternoon" into real Budapest dates and hours (weekends skipped) |
 | `check_slot(clinic_id, slot_start, when, part_of_day)` | Decides whether an offered time fits the patient's window and the clinic's opening hours |
 | `create_calendar_event(clinic_id, slot_start, duration_min, patient_name, notes)` | Writes the confirmed appointment as an `.ics` file to `bookings/` (git-ignored) |
@@ -46,8 +45,8 @@ Messages to the agent are tagged with the speaker: `[patient|en] ...` or `[recep
 | Layer | Tool |
 |---|---|
 | Agent | Google ADK, Gemini `gemini-3.5-flash-lite` |
-| Backend API | `adk api_server` (FastAPI, built into ADK) |
-| Voice | ElevenLabs Scribe (STT) and TTS |
+| Agent API | `adk api_server` (port 8000) |
+| Voice bridge | FastAPI (`voice.server`, port 8001), ElevenLabs Scribe and TTS, Gemini translation |
 | Frontend | React |
 | Calendar | `.ics` file generated in Python |
 
@@ -59,7 +58,9 @@ Messages to the agent are tagged with the speaker: `[patient|en] ...` or `[recep
 | 3 | Redha Ali Hussein Hasan Al-Ashwal | Frontend | React interface, live transcript, call controls, language selection |
 | 4 | Moises Raul Raunde | Integration & product | Integrating all parts, Hungarian pronunciation tests, demo scenario, presentation |
 
-Full plan and timeline: [phone-agent-plan.md](phone-agent-plan.md)
+Full plan and timeline: [phone-agent-plan.md](phone-agent-plan.md).
+
+Demo scenarios and rehearsal checks: [docs/dev4-demo-runbook.md](docs/dev4-demo-runbook.md).
 
 ## Setup
 Requires Python 3.10+.
@@ -73,22 +74,32 @@ pip install -r requirements.txt
 cp .env.example .env             # then fill in your own keys
 ```
 
-Run the agent (from the repository root, the folder **above** the agent folder):
+Start these services in separate terminals from the repository root:
 
 ```bash
-adk web                                                # chat UI for testing
-adk api_server --allow_origins http://localhost:5173   # HTTP API for the React frontend
+adk api_server --allow_origins http://localhost:5173
+uvicorn voice.server:app --port 8001
+cd frontend
+npm ci
+npm run dev
 ```
 
-- `--allow_origins` is needed so the browser (Vite on port 5173) may call the API on port 8000 (CORS).
+- Vite 8 requires Node.js 20.19+ or 22.12+.
+- `--allow_origins` allows the browser (Vite on port 5173) to call the ADK API on port 8000.
 - After changing agent code, **restart** the server and start a **new session** before testing.
-- If `adk web` fails with `_make_subprocess_transport NotImplementedError`, run `adk web --no-reload`.
+- To debug the agent alone, use ADK's own chat UI instead of the frontend: `adk web` (shows every tool call). If it fails with `_make_subprocess_transport NotImplementedError`, run `adk web --no-reload`.
+- Before a demo, run `python integration/scripts/health_check.py` to check both servers and the keys.
 
-Run the offline tests (no Gemini calls, no keys needed):
+Open the Vite URL, select **Live agent**, start a call, and use **Speak as receptionist** for the Hungarian role-play. Typed receptionist replies remain available. **Sample data** works without provider keys or backend services. The voice server keeps provider keys on the backend; use fictional patient details only.
+
+Run the offline tests (no provider calls, no keys needed):
 
 ```bash
-for t in contract clinics time_window slots calendar_event; do python -m tests.test_$t; done
+for t in contract clinics time_window slots calendar_event booking_guard; do python -m tests.test_$t; done
+cd frontend && npm run lint && npm run build
 ```
+
+The voice layer's tests use `pytest`, which is not in `requirements.txt`. Install it once with `pip install pytest`, then run `python -m pytest voice/tests`.
 
 ## Free-tier limits
 - `gemini-3.5-flash-lite` on the free tier allows **15 requests per minute per Google project**. One booking call uses about 8–10 requests, because every tool step is a request.
@@ -105,7 +116,7 @@ npm install
 npm run dev
 ```
 
-The current frontend is a simulated prototype. It does not connect to the ADK agent or live voice services yet; agree on the API and audio contracts before integrating them.
+The frontend supports both the live ADK/voice flow and sample data. The live clinic conversation remains a role-play and does not place a phone call. Do not enter real personal or medical information.
 
 ## Rules for contributors
 - Never commit `.env` or paste keys in chat. Only `.env.example` (variable names) is committed.

@@ -5,6 +5,7 @@
 
 Routes
   /apps/..., /run, ...   the ADK agent API (same as `adk api_server`)
+  /call/ws               two-phone call rooms (voice/call.py)
   /voice/...             the voice bridge (voice/server.py: /voice/ws/stt, /voice/tts, /voice/translate, /voice/health)
   /                      the website from frontend/dist
 
@@ -22,6 +23,7 @@ from google.adk.cli.fast_api import get_fast_api_app
 
 from demo_access import DemoAccessMiddleware
 from voice import server as voice_server  # also loads .env (keys stay on this machine)
+from voice import call as call_rooms
 
 ROOT = Path(__file__).resolve().parent
 DIST = ROOT / "frontend" / "dist"
@@ -48,6 +50,8 @@ ALLOW_ORIGINS = [o.strip() for o in os.getenv("ALLOW_ORIGINS", "").split(",") if
 app = get_fast_api_app(agents_dir=str(ROOT), web=False, host="127.0.0.1", port=PORT, lifespan=lifespan,
                        allow_origins=ALLOW_ORIGINS)
 app.mount("/voice", voice_server.app)
+call_rooms.AGENT_APP = app  # call rooms reach the agent in-process (see voice/call.py)
+app.mount("/call", call_rooms.app)  # two-phone call rooms (patient phone + receptionist phone)
 if not DIST.exists():
     raise SystemExit("frontend/dist is missing: build it first (see the top of serve.py or run ./run_online.sh)")
 app.mount("/", StaticFiles(directory=DIST, html=True), name="website")  # last, so API routes win

@@ -1,0 +1,108 @@
+/* Two-phone mode (PhoneCall.jsx): mobile first, own scope so it does not touch the main page. */
+.phone-lobby, .phone-call {
+  --ph-bg: #f5f7f4; --ph-card: #ffffff; --ph-text: #16241c; --ph-muted: #5d6b63;
+  --ph-accent: #1f6f4a; --ph-accent-2: #2b4c8c; --ph-agent: #eef3ff; --ph-me: #e3f3ea; --ph-other: #fff4e5;
+  --ph-danger: #b3261e;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color: var(--ph-text); background: var(--ph-bg);
+  max-width: 560px; margin: 0 auto; min-height: 100dvh; box-sizing: border-box;
+}
+@media (prefers-color-scheme: dark) {
+  .phone-lobby, .phone-call {
+    --ph-bg: #101512; --ph-card: #18201b; --ph-text: #e8efe9; --ph-muted: #9aa8a0;
+    --ph-accent: #4fbf87; --ph-accent-2: #7ea2ea; --ph-agent: #1c2436; --ph-me: #17301f; --ph-other: #33281a;
+    --ph-danger: #ff8a80;
+  }
+}
+.phone-lobby { display: flex; flex-direction: column; gap: 14px; padding: 32px 16px; }
+.phone-lobby h1 { font-size: 1.5rem; margin: 0; }
+.phone-lobby p { color: var(--ph-muted); margin: 0 0 8px; }
+.phone-label { font-weight: 600; }
+.phone-code { font-size: 2rem; letter-spacing: 0.3em; text-align: center; padding: 12px; border-radius: 12px;
+  border: 2px solid var(--ph-muted); background: var(--ph-card); color: var(--ph-text); text-transform: uppercase; }
+.phone-big { font-size: 1.1rem; font-weight: 600; padding: 18px; border-radius: 14px; border: 0;
+  background: var(--ph-accent); color: #fff; cursor: pointer; }
+.phone-big--hu { background: var(--ph-accent-2); }
+.phone-big:disabled { opacity: 0.5; cursor: default; }
+.phone-link { background: none; border: 0; color: var(--ph-muted); padding: 8px; cursor: pointer; }
+
+.phone-call { display: flex; flex-direction: column; height: 100dvh; }
+.phone-header { display: flex; justify-content: space-between; align-items: center; gap: 8px;
+  padding: 12px 16px; background: var(--ph-card); border-bottom: 1px solid color-mix(in srgb, var(--ph-muted) 30%, transparent); }
+.phone-header div { display: flex; flex-direction: column; }
+.phone-header span { font-size: 0.8rem; color: var(--ph-muted); }
+.phone-dot--on { color: var(--ph-accent) !important; }
+.phone-start { display: flex; flex-direction: column; gap: 10px; padding: 12px 16px; }
+.phone-start input, .phone-start textarea, .phone-type input {
+  font: inherit; padding: 12px; border-radius: 10px; border: 1px solid var(--ph-muted);
+  background: var(--ph-card); color: var(--ph-text); min-width: 0; }
+.phone-share { font-size: 0.85rem; color: var(--ph-muted); overflow-wrap: anywhere; margin: 0; }
+.phone-messages { flex: 1; overflow-y: auto; padding: 12px 16px; display: flex; flex-direction: column; gap: 10px; }
+.phone-msg { padding: 10px 12px; border-radius: 14px; max-width: 88%; background: var(--ph-other); }
+.phone-msg small { color: var(--ph-muted); font-size: 0.75rem; }
+.phone-msg p { margin: 4px 0 0; font-size: 1.05rem; line-height: 1.35; overflow-wrap: anywhere; }
+.phone-msg--me { align-self: flex-end; background: var(--ph-me); }
+.phone-msg--agent { background: var(--ph-agent); }
+.phone-orig { font-size: 0.85rem !important; color: var(--ph-muted); font-style: italic; }
+.phone-thinking { color: var(--ph-muted); font-style: italic; margin: 0; }
+.phone-error { color: var(--ph-danger); padding: 0 16px; margin: 4px 0; }
+.phone-controls { padding: 10px 16px calc(12px + env(safe-area-inset-bottom)); background: var(--ph-card);
+  display: flex; flex-direction: column; gap: 8px; border-top: 1px solid color-mix(in srgb, var(--ph-muted) 30%, transparent); }
+.phone-heard { margin: 0; color: var(--ph-muted); font-style: italic; min-height: 1.3em; overflow-wrap: anywhere; }
+.phone-mic { font-size: 1.15rem; font-weight: 700; padding: 22px; border-radius: 999px; border: 0;
+  background: var(--ph-accent); color: #fff; cursor: pointer; }
+.phone-call--receptionist .phone-mic { background: var(--ph-accent-2); }
+.phone-mic--on { background: var(--ph-danger) !important; animation: phone-pulse 1.2s ease-in-out infinite; }
+.phone-mic:disabled { opacity: 0.5; }
+@keyframes phone-pulse { 50% { opacity: 0.75; } }
+@media (prefers-reduced-motion: reduce) { .phone-mic--on { animation: none; } }
+.phone-type { display: flex; gap: 8px; }
+.phone-type input { flex: 1; }
+.phone-type button { padding: 0 16px; border-radius: 10px; border: 0; background: var(--ph-muted); color: #fff; }
+.phone-hint { margin: 0; font-size: 1rem; line-height: 1.4; }
+.phone-newcall { align-self: flex-end; margin: 0 16px; }
+
+/* Call screen */
+.call-stage { flex: 1; display: flex; flex-direction: column; align-items: center; text-align: center;
+  padding: 32px 16px 12px; gap: 6px; overflow-y: auto; }
+.call-avatar { width: 112px; height: 112px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--ph-accent); color: #fff; font-size: 3rem; font-weight: 700; margin-bottom: 8px;
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--ph-accent) 50%, transparent); }
+.phone-call--receptionist .call-avatar { background: var(--ph-accent-2); }
+.call-avatar--speaking { animation: call-wave 1.1s ease-out infinite; }
+.call-avatar--thinking { opacity: 0.7; }
+.call-avatar--ringing { animation: call-ring 0.9s ease-in-out infinite; }
+@keyframes call-wave { to { box-shadow: 0 0 0 22px transparent; } }
+@keyframes call-ring { 0%, 100% { transform: rotate(0); } 25% { transform: rotate(-8deg); } 75% { transform: rotate(8deg); } }
+@media (prefers-reduced-motion: reduce) { .call-avatar--speaking, .call-avatar--ringing { animation: none; } }
+.call-stage h2 { margin: 0; font-size: 1.6rem; }
+.call-sub { margin: 0; color: var(--ph-muted); font-variant-numeric: tabular-nums; }
+.call-intro { display: flex; flex-direction: column; gap: 10px; margin-top: 18px; max-width: 420px; }
+.call-intro p { margin: 0; line-height: 1.4; }
+.call-example { color: var(--ph-muted); font-style: italic; }
+.call-status { margin: 18px 0 0; font-weight: 600; min-height: 1.4em; overflow-wrap: anywhere; }
+.call-wait { margin: 0; color: var(--ph-muted); font-size: 0.9rem; }
+.call-caption { margin: 18px 0 0; padding: 14px 16px; border-radius: 16px; background: var(--ph-agent);
+  font-size: 1.15rem; line-height: 1.4; max-width: 460px; overflow-wrap: anywhere; }
+.call-mine { margin: 6px 0 0; color: var(--ph-muted); font-size: 0.9rem; overflow-wrap: anywhere; }
+.call-controls { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 14px;
+  padding: 16px 16px calc(16px + env(safe-area-inset-bottom)); }
+.call-btn { border: 0; border-radius: 999px; padding: 18px 26px; font-size: 1.05rem; font-weight: 700;
+  cursor: pointer; display: inline-flex; gap: 8px; align-items: center; color: #fff; }
+.call-btn:disabled { opacity: 0.5; cursor: default; }
+.call-btn--green { background: #1e9e55; min-width: 220px; justify-content: center; }
+.call-btn--red { background: #d93025; min-width: 140px; justify-content: center; }
+.call-btn--round { background: color-mix(in srgb, var(--ph-muted) 35%, var(--ph-card)); color: var(--ph-text); }
+.call-btn--on { background: var(--ph-text); color: var(--ph-bg); }
+.call-controls .phone-link { flex-basis: 100%; }
+.phone-call .phone-messages { flex: 0 1 40%; border-top: 1px solid color-mix(in srgb, var(--ph-muted) 30%, transparent); }
+.call-decide { display: flex; gap: 12px; flex-basis: 100%; justify-content: center; flex-wrap: wrap; }
+.call-decide .call-btn { min-width: 150px; justify-content: center; font-size: 1.15rem; padding: 20px 24px; }
+.phone-input { font: inherit; font-size: 1.1rem; padding: 12px; border-radius: 12px; border: 2px solid var(--ph-muted);
+  background: var(--ph-card); color: var(--ph-text); min-width: 0; }
+/* Compact controls so the reception's Confirm / Deny never cover COSMO's caption */
+.call-avatar { flex-shrink: 0; }
+.call-decide { width: 100%; flex-wrap: nowrap; }
+.call-decide .call-btn { flex: 1 1 0; min-width: 0; padding: 18px 10px; }
+.phone-call--receptionist .call-controls { gap: 10px; padding-top: 12px; }
+.phone-call--receptionist .call-controls > .call-btn { padding: 13px 18px; font-size: 0.98rem; min-width: 0; }

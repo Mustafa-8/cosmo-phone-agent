@@ -1,6 +1,8 @@
 import { useRef, useState } from 'react'
 import './App.css'
 import { createSession, sendToAgent } from './agentApi'
+import { PlaybackQueue, startMic } from './voice/audio'
+import { openStt, speakItem, translateText } from './voice/voiceApi'
 
 const USER_ID = 'student-web'
 
@@ -101,21 +103,101 @@ function App() {
   const sessionRef = useRef(null)
   const nextId = useRef(100)
 
+  // Voice layer: receptionist mic -> Scribe -> agent -> ElevenLabs -> speaker.
+  const [micOn, setMicOn] = useState(false)
+  const [heardText, setHeardText] = useState('')
+  const queueRef = useRef(null)
+  const playingRef = useRef(false)
+  const mutedRef = useRef(false)
+  const speakingRef = useRef(true)
+  const micRef = useRef(null)
+  const agentChain = useRef(Promise.resolve())
+  const speechChain = useRef(Promise.resolve())
+  if (!queueRef.current) queueRef.current = new PlaybackQueue((playing) => { playingRef.current = playing })
+  mutedRef.current = isMuted
+  speakingRef.current = isSpeaking
+
   const isCallActive = callState === 'active'
   const isLive = mode === 'live'
 
   function appendMessages(newMessages) {
-    setMessages((current) => [
-      ...current,
-      ...newMessages.map((message) => ({ ...message, id: nextId.current++ })),
-    ])
+    const withIds = newMessages.map((message) => ({ ...message, id: nextId.current++ }))
+    setMessages((current) => [...current, ...withIds])
+    return withIds
   }
 
-  async function talkToAgent(speaker, text) {
-    setIsThinking(true)
-    const replies = await sendToAgent(USER_ID, sessionRef.current, speaker, text)
-    setIsThinking(false)
-    appendMessages(replies)
+  function setTranslation(id, text) {
+    setMessages((current) => current.map((m) => (m.id === id ? { ...m, translated_text: text } : m)))
+  }
+
+  // Speak agent messages word for word, in order, and show an English translation of the Hungarian ones.
+  function voiceAgentMessages(added) {
+    for (const m of added) {
+      if (m.type !== 'transcript' || m.speaker !== 'agent') continue
+      const lang = m.to === 'patient' ? 'en' : 'hu'
+      if (speakingRef.current) {
+        const audio = speakItem(m.original_text, lang)
+        speechChain.current = speechChain.current
+          .then(() => audio)
+          .then((item) => { if (speakingRef.current) queueRef.current.enqueue(item) })
+      }
+      if (lang === 'hu') translateText(m.original_text, 'hu', 'en', 'agent').then((t) => t && setTranslation(m.id, t))
+    }
+  }
+
+  // One agent turn at a time, even if the receptionist speaks again while COSMO is thinking.
+  function talkToAgent(speaker, text) {
+    const run = agentChain.current.then(async () => {
+      setIsThinking(true)
+      const replies = await sendToAgent(USER_ID, sessionRef.current, speaker, text)
+      setIsThinking(false)
+      voiceAgentMessages(appendMessages(replies))
+    })
+    agentChain.current = run.catch(() => {})
+    return run
+  }
+
+  function handleReceptionistLine(text) {
+    setHeardText('')
+    const [msg] = appendMessages([{ speaker: 'receptionist', language: 'Hungarian', original_text: text, translated_text: '' }])
+    translateText(text, 'hu', 'en').then((t) => t && setTranslation(msg.id, t))
+    return talkToAgent('receptionist', text)
+  }
+
+  async function startReceptionistMic() {
+    const stt = openStt('hu', {
+      onPartial: (text) => setHeardText(text),
+      onCommitted: (text) => handleReceptionistLine(text),
+      onError: (message) => appendMessages([{ type: 'error', message }]),
+    })
+    try {
+      const stopMic = await startMic((chunk) => {
+        // Half duplex: ignore the mic while COSMO speaks, so it never hears itself (works without headphones).
+        if (mutedRef.current || playingRef.current) return
+        stt.send(chunk)
+      })
+      micRef.current = { stt, stopMic }
+      setMicOn(true)
+    } catch (error) {
+      stt.close()
+      appendMessages([{ type: 'error', message: `Microphone not available: ${error.message}` }])
+    }
+  }
+
+  function stopReceptionistMic() {
+    const current = micRef.current
+    micRef.current = null
+    setMicOn(false)
+    setHeardText('')
+    if (!current) return
+    current.stopMic()
+    current.stt.commit() // finish the last sentence, then close
+    setTimeout(() => current.stt.close(), 2000)
+  }
+
+  function toggleSound() {
+    if (isSpeaking) queueRef.current.stop()
+    setIsSpeaking(!isSpeaking)
   }
 
   async function startLiveCall() {
@@ -139,8 +221,7 @@ function App() {
     const text = receptionistText.trim()
     if (!text || isThinking) return
     setReceptionistText('')
-    appendMessages([{ speaker: 'receptionist', language: 'Hungarian', original_text: text, translated_text: '' }])
-    await talkToAgent('receptionist', text)
+    await handleReceptionistLine(text)
   }
 
   function startDemoCall(event) {
@@ -192,11 +273,15 @@ function App() {
   }
 
   function endCall() {
+    stopReceptionistMic()
+    queueRef.current.stop()
     setCallState('ended')
     setIsMuted(false)
   }
 
   function resetCall() {
+    stopReceptionistMic()
+    queueRef.current.stop()
     setCallState('ready')
     setMessages([])
     setReplyIndex(-1)
@@ -232,7 +317,7 @@ function App() {
         <div className="prototype-banner" role="note">
           <Icon name="shield" size={17} />
           {isLive
-            ? <span><strong>Live agent</strong> — the real COSMO agent runs on your computer. The clinic call is a role-play: a teammate types the receptionist's Hungarian replies. No real clinic is contacted.</span>
+            ? <span><strong>Live agent</strong> — the real COSMO agent runs on your computer. The clinic call is a role-play: a teammate types or speaks the receptionist's Hungarian replies. No real clinic is contacted.</span>
             : <span><strong>Sample data</strong> — this screen replays a scripted conversation. No agent, clinic call or appointment is involved.</span>}
           <span className="mode-switch" role="group" aria-label="Demo mode">
             <button type="button" className={isLive ? 'mode-switch--on' : ''} onClick={() => setMode('live')} disabled={isCallActive}>Live agent</button>
@@ -376,6 +461,17 @@ function App() {
                       />
                       <button type="submit" disabled={isThinking || !receptionistText.trim()}>Send</button>
                     </div>
+                    <div className="voice-row">
+                      <button
+                        type="button"
+                        className={`control-button ${micOn ? 'control-button--active' : ''}`}
+                        onClick={micOn ? stopReceptionistMic : startReceptionistMic}
+                        aria-pressed={micOn}
+                      >
+                        <Icon name={micOn ? 'micOff' : 'mic'} size={16} />{micOn ? 'Stop receptionist mic' : 'Speak as receptionist'}
+                      </button>
+                      {micOn && <span className="voice-heard" lang="hu">{heardText ? `Hearing: ${heardText}` : 'Listening…'}</span>}
+                    </div>
                   </form>
                 ) : (
                   <button className="simulate-button" type="button" onClick={addSimulatedReply}>Show next sample reply <Icon name="arrow" size={15} /></button>
@@ -384,7 +480,7 @@ function App() {
                   <button className={`control-button ${isMuted ? 'control-button--active' : ''}`} type="button" onClick={() => setIsMuted((muted) => !muted)} aria-pressed={isMuted}>
                     <Icon name={isMuted ? 'micOff' : 'mic'} size={18} />{isMuted ? 'Unmute' : 'Mute'}
                   </button>
-                  <button className={`control-button ${!isSpeaking ? 'control-button--active' : ''}`} type="button" onClick={() => setIsSpeaking((speaking) => !speaking)} aria-pressed={isSpeaking}>
+                  <button className={`control-button ${!isSpeaking ? 'control-button--active' : ''}`} type="button" onClick={toggleSound} aria-pressed={isSpeaking}>
                     <Icon name="volume" size={18} />{isSpeaking ? 'Sound on' : 'Sound off'}
                   </button>
                   <button className="end-button" type="button" onClick={endCall}><Icon name="phone" size={17} /> End demo</button>

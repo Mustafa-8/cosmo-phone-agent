@@ -49,7 +49,7 @@ async function demoLogin(code) {
     body: JSON.stringify({ code }),
     credentials: 'same-origin',
   })
-  if (res.status === 404) return true // local dev server without access control
+  if (res.status === 404 || res.status === 405) return true // server without access control
   return res.ok
 }
 
@@ -158,7 +158,7 @@ function Lobby({ onJoin }) {
       <input id="access-code" className="phone-input" value={code} autoComplete="off" autoCapitalize="none"
         onChange={(e) => setCode(e.target.value)} placeholder={role === 'patient' ? 'From the person running the demo' : 'A demó kódja'} />
       {loginError && <p className="phone-error" role="alert">⚠ {loginError}</p>}
-      <button className="phone-big" disabled={!room || !code.trim() || busy} onClick={continueToCall}>
+      <button className="phone-big" disabled={!room || busy} onClick={continueToCall}>
         {role === 'patient' ? 'Continue' : 'Tovább'}
       </button>
       <button className="phone-link" onClick={() => setRole('')}>← back</button>

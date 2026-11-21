@@ -8,6 +8,19 @@ only in its own language.
 
 ▶ [Video (MP4)](media/demo.mp4)
 
+## QR codes (live demo link)
+
+Scan with a phone. The patient and reception codes join the same room (**DEMO**), so the two phones pair automatically.
+Tap **New call** on the patient phone between rehearsals.
+
+| Main website | Patient phone | Reception phone | Testing (choose a role) |
+|:---:|:---:|:---:|:---:|
+| <img src="media/qr/main-website.png" width="160" alt="QR main website"> | <img src="media/qr/patient-phone.png" width="160" alt="QR patient phone"> | <img src="media/qr/reception-phone.png" width="160" alt="QR reception phone"> | <img src="media/qr/testing-choose-role.png" width="160" alt="QR testing"> |
+| [https://belly-importance-introducing-cocktail.trycloudflare.com/](https://belly-importance-introducing-cocktail.trycloudflare.com/) | [patient, room DEMO](https://belly-importance-introducing-cocktail.trycloudflare.com/?phone&role=patient&room=DEMO) | [reception, room DEMO](https://belly-importance-introducing-cocktail.trycloudflare.com/?phone&role=receptionist&room=DEMO) | [choose role](https://belly-importance-introducing-cocktail.trycloudflare.com/?phone) |
+
+> These codes point to the Cloudflare quick-tunnel link of today's demo. It works only while `./run_online.sh`
+> is running on the demo laptop, and a restart gives a new link, so the codes must then be regenerated.
+
 ## 1. Start the server (laptop, once)
 
 ```bash

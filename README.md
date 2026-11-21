@@ -116,6 +116,19 @@ COSMO picks a clinic, doctor and free slot and asks the reception, who only taps
 **How to run and operate it, step by step, with screenshots and a video: [docs/PHONE_DEMO.md](docs/PHONE_DEMO.md).**
 Quick start: `./run_online.sh`, then open `<link>/?phone` on two phones.
 
+### QR codes (live demo link)
+
+Scan with a phone. The patient and reception codes join the same room (**DEMO**), so the two phones pair automatically.
+Tap **New call** on the patient phone between rehearsals.
+
+| Main website | Patient phone | Reception phone | Testing (choose a role) |
+|:---:|:---:|:---:|:---:|
+| <img src="docs/media/qr/main-website.png" width="160" alt="QR main website"> | <img src="docs/media/qr/patient-phone.png" width="160" alt="QR patient phone"> | <img src="docs/media/qr/reception-phone.png" width="160" alt="QR reception phone"> | <img src="docs/media/qr/testing-choose-role.png" width="160" alt="QR testing"> |
+| [https://belly-importance-introducing-cocktail.trycloudflare.com/](https://belly-importance-introducing-cocktail.trycloudflare.com/) | [patient, room DEMO](https://belly-importance-introducing-cocktail.trycloudflare.com/?phone&role=patient&room=DEMO) | [reception, room DEMO](https://belly-importance-introducing-cocktail.trycloudflare.com/?phone&role=receptionist&room=DEMO) | [choose role](https://belly-importance-introducing-cocktail.trycloudflare.com/?phone) |
+
+> These codes point to the Cloudflare quick-tunnel link of today's demo. It works only while `./run_online.sh`
+> is running on the demo laptop, and a restart gives a new link, so the codes must then be regenerated.
+
 ## Online demo (public link)
 `./run_online.sh` serves the agent, the voice bridge and the website on one port (`serve.py`) and opens a public Cloudflare quick tunnel (needs `cloudflared`). The link works only while your laptop runs it and changes on every start.
 

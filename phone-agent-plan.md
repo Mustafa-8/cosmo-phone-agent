@@ -3,14 +3,14 @@
 ## Goal
 An agent that books a clinic appointment for an international student by talking Hungarian with the receptionist, then reports back in English.
 
-- **MVP (today):** live booking conversation with a simulated receptionist (a teammate on the microphone).
-- **Phase 2:** live two-way translation mode.
+- **MVP:** English appointment request, booking conversation with a simulated receptionist (a teammate on the microphone), and an English booking summary.
+- **Phase 2:** live human handoff and general two-way interpretation.
 
 ## Principles
 1. **The model decides, Python computes.** Gemini understands the request and leads the conversation. Dates, slots and files are computed by plain Python tools, so the model never invents a time.
 2. **One agent with good tools.** Every tool has type hints, a precise docstring, and returns a `dict` with a `status` field (`"ok"`, `"error"`, ...). Tools never crash the agent.
 3. **The instruction and `tools=[...]` must match.** When a tool is added or renamed, update both together.
-4. **The agent is text in, text out.** Voice (Dev 2) and frontend (Dev 3) wrap around it. If voice fails during the demo, the text flow still works.
+4. **The agent is text in, text out.** The local integration gateway connects the frontend and voice package to the ADK API. Sample mode remains available if live services fail.
 5. **Transparency.** The agent's first Hungarian sentence says it is an AI assistant calling on the student's behalf.
 
 ## Agent behaviour
@@ -18,26 +18,27 @@ An agent that books a clinic appointment for an international student by talking
 2. Find a clinic → call (simulated).
 3. Disclose AI in the first sentence, then negotiate a slot in Hungarian.
 4. Confirm → create the calendar event → English summary to the student.
-5. If the receptionist refuses to talk to an AI → hand off to the student and act as interpreter.
+5. If the receptionist refuses to talk to an AI → ask the student to join. Live transfer and full two-way interpretation are future work.
 
 ## Agent tools (Dev 1)
 | Tool | The model decides | Python computes |
 |---|---|---|
 | `find_clinics(specialty, district)` | which specialty | filter `data/clinics.json` |
-| `resolve_time_window(week_offset, part_of_day)` | "next week, afternoon" → (1, "afternoon") | concrete date and time ranges (Europe/Budapest) |
-| `propose_slot(clinic_id, window_start, window_end)` | – | first free slot in the mock schedule |
-| `create_calendar_event(clinic_id, start_iso, duration_min)` | the final agreed time | write an `.ics` file |
-| `handoff_to_student(reason)` | when the receptionist refuses AI | return `status: "handoff"` |
+| `resolve_time_window(when, part_of_day)` | "next week, afternoon" | concrete date and time ranges (Europe/Budapest) |
+| `check_slot(clinic_id, slot_start, when, part_of_day)` | offered time | whether the time matches the requested window and clinic hours |
+| `create_calendar_event(clinic_id, slot_start, duration_min, patient_name, notes)` | confirmed booking | write an `.ics` file |
+| `say(to, text)` | who should hear the message | validate and return speech for the patient or receptionist |
 
 ## Folder layout
 ```
-cosmo-phone-agent/          <- run adk web / adk api_server here
+cosmo-phone-agent/          <- run the ADK API and local integration gateway here
   phone_agent/              <- underscore: must be a valid Python package
     __init__.py
     agent.py                root_agent, instruction, tools=[...]
     tools/                  one file per area, to avoid merge conflicts
     data/clinics.json       3–5 mock Budapest clinics
-  voice/                    Dev 2
+    integration.py          local FastAPI/WebSocket gateway
+  voice/                    Dev 2: STT, translation, TTS, browser audio
   frontend/                 Dev 3
 ```
 
@@ -46,10 +47,10 @@ cosmo-phone-agent/          <- run adk web / adk api_server here
 |---|---|---|---|
 | 1 | Mustafa Ali Mohsin Albusultan (Leader) | Agent core, tools, `adk api_server`, error handling, merging | Agent replies in Hungarian in `adk web` |
 | 2 | Noureldeen Elshawaf | Voice: Scribe STT, mic streaming, TTS, playback and interruption | A Hungarian sentence spoken by a standalone script |
-| 3 | Redha Ali Hussein Hasan Al-Ashwal | React UI: transcript, call controls, language selection | UI that sends text to the API and shows the reply |
-| 4 | Moises Raul Raunde | Integration, Hungarian tests, demo scenario, presentation | Written receptionist script (normal and refusal case) |
+| 3 | Redha Ali Hussein Hasan Al-Ashwal | React UI: transcript, call controls, language selection | Sample UI and live gateway connection |
+| 4 | Moises Raul Raunde | Integration, Hungarian tests, demo scenario, presentation | Rehearsal runbook; verify integration and voice with the team |
 
-**Contract between Dev 1 and Dev 3:** the frontend calls `adk api_server` over HTTP. Agree on the request and response format at the start, and test it early.
+**Integration contract:** the browser calls the local gateway; it creates ADK sessions, forwards committed transcripts via `phone_agent/contract.py`, and streams audio events over WebSocket. The browser never receives provider keys.
 
 ## Workflow
 - Each member works on their own branch (`<name>/<feature>`).

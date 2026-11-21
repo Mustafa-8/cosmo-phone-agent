@@ -6,18 +6,22 @@ Use fictional details only.
 
 ## Current demo boundary
 
-The frontend on `redha/frontend-ui` is a sample-data prototype. Its **Show next
-sample reply** control demonstrates the intended conversation, but it does not
-call the ADK agent or capture microphone audio. The voice implementation is on
-`noureldeen/voice-layer`; it is not part of the current `main` branch, and the
-repository does not yet contain a browser-to-voice/agent bridge.
+The frontend has two paths: sample mode keeps the **Show next sample reply**
+demo, and the integration branch adds a live-agent path through
+`phone_agent/integration.py`. The gateway connects the browser microphone to
+STT, translation, and the ADK agent; audio is returned to the browser for
+playback. Confirm this integration is present in the branch being rehearsed;
+it is not part of `main` until the integration PR is reviewed and merged.
 
-The current agent includes clinic lookup, time-window resolution, slot
-checking, speech output, and calendar-event creation. Calendar events are
-written only after receptionist confirmation. This does not mean the browser
-flow is integrated or a real clinic is contacted. A live human handoff tool is
-not available; present the refusal path as a scripted scenario unless it has
-been separately implemented and verified.
+In mock voice mode the microphone activity triggers scripted booking replies;
+it does not recognize actual speech. A live provider run needs team-owned
+credentials. Neither mode calls a real clinic or places a telephone call.
+
+The agent includes clinic lookup, time-window resolution, slot checking,
+speech output, and calendar-event creation. Calendar events are written only
+after receptionist confirmation. A live human handoff tool is not available;
+present the refusal path as a scripted scenario unless it has been separately
+implemented and verified.
 
 ## Demo setup
 
@@ -95,6 +99,8 @@ in the demo notes. Never use real patient information.
 
 - [ ] Start the agent API and verify a text request can create an ADK session and
   return agent speech events in the agreed contract format.
+- [ ] Start the integration gateway and verify a browser live session connects
+  to the agent API.
 - [ ] Verify partial transcripts remain UI-only; only committed patient or
   receptionist transcripts reach the agent.
 - [ ] Verify agent messages are routed by `to`: Hungarian to the receptionist

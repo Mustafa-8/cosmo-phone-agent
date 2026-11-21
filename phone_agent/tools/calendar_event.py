@@ -91,7 +91,7 @@ def _create(clinic_id: str, slot_start: str, duration_min: int, patient_name: st
             "clinic": clinic["name"],
             "address": clinic["address"],
             "phone": clinic["phone"],
-            "date_long": local_start.strftime("%A %-d %B %Y"),
+            "date_long": f"{local_start:%A} {local_start.day} {local_start:%B %Y}",
             "time": f"{local_start:%H:%M}-{local_end:%H:%M}",
         },
     }

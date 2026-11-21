@@ -7,7 +7,7 @@ import asyncio
 import pytest
 
 from voice import events, stt, translation, tts
-from voice.config import settings
+from voice.config import Settings, settings
 
 
 @pytest.fixture(autouse=True)
@@ -35,6 +35,12 @@ def test_tts_never_calls_api_for_empty_text(monkeypatch):
 def test_make_stt_uses_mock_without_key():
     s = stt.make_stt("hu", None, None, None)
     assert isinstance(s, stt.MockSTT)
+
+
+def test_translation_key_can_use_a_separate_google_project(monkeypatch):
+    monkeypatch.setenv("GOOGLE_API_KEY", "agent-test-key")
+    monkeypatch.setenv("TRANSLATION_GOOGLE_API_KEY", "translation-test-key")
+    assert Settings().gemini_api_key == "translation-test-key"
 
 
 def test_translation_mock_keeps_dose_and_drug():

@@ -148,9 +148,9 @@ DEMO_SCRIPT = {
         "Yes, tomorrow at 10 o'clock works for me. Thank you.",
     ],
     "hu": [
-        "Jó napot kívánok! Mióta fáj a feje?",
-        "Rendben. Holnap délelőtt 10 órakor tudok időpontot adni Dr. Kovácshoz.",
-        "Kérem, hozza magával a TAJ-kártyáját és a gyógyszerei listáját.",
+        "Jó napot kívánok! Miben segíthetek?",
+        "Jövő kedden 15 órakor van szabad időpontunk. Mi a beteg neve?",
+        "Rendben, a megbeszélt időpontot rögzítettem. Viszont hallásra!",
     ],
 }
 

@@ -13,7 +13,7 @@ The voice layer never changes words: it transcribes and speaks exactly what it i
 | `config.py` | Settings read from the repo-root `.env`. |
 | `check_voice.py` | Standalone smoke test of all three APIs. |
 | `web/audio.js` | Browser side: `startMic(onChunk, onLevel)` and `PlaybackQueue` (plays replies in order, `stop()` interrupts). |
-| `web/pcm-worklet.js` | AudioWorklet that turns mic audio into 16 kHz PCM16. Serve it from the frontend's `public/` folder. |
+| `web/pcm-worklet.js` | AudioWorklet that turns mic audio into 16 kHz PCM16; Vite serves it from this directory. |
 
 ## Run the smoke test
 ```bash
@@ -27,32 +27,24 @@ Then play `out_hu.mp3`. Each API falls back to mock mode when its key is missing
 - Gemini: `gemini-2.5-flash` returns 404 for new users. `gemini-3.5-flash-lite` translated medical sentences in about 1 s and kept doses, dates and drug names exact. `gemini-3.5-flash` and `gemini-3.8-flash` often took over 20 s because they think by default.
 - Scribe partial transcripts can be very wrong mid-sentence; the committed transcript was close to the original.
 
-## Integration with the agent (`phone_agent/contract.py`)
-`voice/events.py` produces and consumes exactly the event format in `contract.py`.
+## Integration with the agent and browser
 
-```python
-from voice import stt, events, tts
-from phone_agent import contract
+`phone_agent/integration.py` is the local FastAPI gateway between the React
+frontend, this voice package, and the ADK API server. It creates the ADK
+session, sends only committed receptionist transcripts through
+`phone_agent/contract.py`, translates committed speech for the transcript,
+and returns agent speech plus optional MP3 audio. Partial transcripts are UI
+preview only. Provider keys remain on the backend.
 
-# Speech in: one STT stream per human on the call
-async def on_committed(text, detected_language=None):
-    ev = events.transcript_event(session_id, "receptionist", "hu", text, committed=True)
-    r = contract.event_to_run_request(ev, user_id)
-    if r["status"] == "ok":
-        adk_events = (await http.post(f"{base}/run", json=r["request"])).json()
-        for out in contract.run_response_to_events(adk_events, session_id):
-            mp3 = await events.speak_event(out)   # speech out, word for word
-            # send mp3 (or out["original_text"] if mp3 is None) to the browser
+Run `adk api_server`, then
+`python -m uvicorn phone_agent.integration:app --host 127.0.0.1 --port 8001`,
+then start the Vite frontend. Vite proxies `/api` and `/ws` to the gateway and
+serves `web/pcm-worklet.js` from this package. The browser streams 16 kHz,
+16-bit mono PCM. Use headphones to reduce echo.
 
-async def on_partial(text):
-    pass  # UI preview only, never sent to the agent
-
-receptionist_stt = stt.make_stt("hu", on_partial, on_committed, on_error)
-await receptionist_stt.start()
-await receptionist_stt.send_audio(pcm16_bytes)   # 16 kHz 16-bit mono from web/pcm-worklet.js
-```
-
-Browser side: copy `web/pcm-worklet.js` into `frontend/public/` (it is loaded from `/pcm-worklet.js`) and import `startMic` and `PlaybackQueue` from `web/audio.js`. Call `PlaybackQueue.stop()` to interrupt playback when the person starts talking. Use headphones to avoid echo.
+In mock mode, `MockSTT` detects microphone activity but supplies scripted
+booking lines; it does not recognize actual speech. A live clinic or telephone
+call is not made.
 
 ## Tests
 ```bash

@@ -74,8 +74,8 @@ Messages to the agent are tagged with the speaker: `[patient|en] ...` or `[recep
 
 Full plan and timeline: [phone-agent-plan.md](phone-agent-plan.md)
 
-Developer 4 demo scenarios, integration checks, and presentation outline:
-[docs/dev4-demo-runbook.md](docs/dev4-demo-runbook.md)
+Developer 4's demo scenarios, Hungarian voice checks, integration rehearsal
+checklist, and presentation outline: [docs/dev4-demo-runbook.md](docs/dev4-demo-runbook.md)
 
 ## Setup
 Requires Python 3.10+.

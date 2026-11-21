@@ -22,7 +22,10 @@ AI_DISCLOSURE = "mesterséges intelligencia"
 TURNS = [
     {"speaker": "patient", "lang": "en",
      "text": "My name is Alex Morgan. I need a dentist appointment next week, in the afternoon.",
-     "expect": {"tools": ["find_clinics", "resolve_time_window"], "say_to": ["patient", "receptionist"],
+     # plan_appointment (since #16) does the clinic + time-window work in one step; the older
+     # flow used find_clinics + resolve_time_window. Either is fine.
+     "expect": {"tools_any": [["plan_appointment"], ["find_clinics", "resolve_time_window"]],
+                "say_to": ["patient", "receptionist"],
                 "receptionist_contains": AI_DISCLOSURE, "no_booking": True}},
     {"speaker": "receptionist", "lang": "hu",
      "text": "Jó napot! Jövő kedden reggel 9-kor tudnék adni időpontot.",
@@ -71,6 +74,9 @@ def check(turn, got):
     for tool in expect.get("tools", []):
         if tool not in got["tools"]:
             problems.append(f"expected the agent to call {tool}")
+    options = expect.get("tools_any")
+    if options and not any(all(t in got["tools"] for t in option) for option in options):
+        problems.append("expected " + " or ".join(" + ".join(option) for option in options))
     spoken_to = {to for to, _ in got["said"]}
     for listener in expect.get("say_to", []):
         if listener not in spoken_to:

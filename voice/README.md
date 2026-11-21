@@ -18,7 +18,7 @@ The voice layer never changes words: it transcribes and speaks exactly what it i
 ## Run the smoke test
 ```bash
 pip install -r requirements.txt
-cp .env.example .env   # fill in ELEVENLABS_API_KEY and GOOGLE_API_KEY
+cp .env.example .env   # fill in ELEVENLABS_API_KEY, GOOGLE_API_KEY (agent) and GEMINI_API_KEY (translation, other project)
 python -m voice.check_voice
 ```
 Then play `out_hu.mp3`. Each API falls back to mock mode when its key is missing (`STT_MODE`, `TRANSLATE_MODE` and `TTS_MODE` can force `real` or `mock`).
@@ -30,7 +30,7 @@ Then play `out_hu.mp3`. Each API falls back to mock mode when its key is missing
 ## Run the full voice demo (3 terminals, from the repo root)
 ```bash
 pip install -r requirements.txt
-cp .env.example .env                                   # ELEVENLABS_API_KEY + GOOGLE_API_KEY
+cp .env.example .env                                   # ELEVENLABS_API_KEY + GOOGLE_API_KEY + GEMINI_API_KEY
 adk api_server --allow_origins http://localhost:5173   # agent, port 8000
 uvicorn voice.server:app --port 8001                   # voice bridge, port 8001 (keys stay here)
 cd frontend && npm install && npm run dev              # website, port 5173 (Vite 8 needs Node 20.19+ or 22.12+)

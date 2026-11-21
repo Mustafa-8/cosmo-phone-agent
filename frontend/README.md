@@ -4,11 +4,14 @@ React UI prototype for COSMO's clinic-appointment booking MVP.
 
 ## What is included
 
-- Student booking request form
-- English/Hungarian language selectors
+- Required student full name and appointment request form
+- English-only student language selection and fixed Hungarian clinic language
 - Simulated call panel with original Hungarian speech and English translations
+- Distinct patient, receptionist, agent-to-receptionist, and agent-to-patient message data
 - Demo microphone, audio, and end-call controls
 - Responsive layout for desktop and mobile
+
+Conversation messages use `speaker`, `original_text`, and `translated_text`. Agent messages also include `to: "receptionist"` for Hungarian call speech or `to: "patient"` for English student updates. The patient request includes `full_name`.
 
 ## Run locally
 
@@ -17,7 +20,7 @@ npm install
 npm run dev
 ```
 
-Open the local URL printed by Vite. Submit the sample appointment request to start a simulated call, then use **Show next sample reply** to advance the example conversation.
+Open the local URL printed by Vite. Enter a full name, submit the sample appointment request to start a simulated call, then use **Show next sample reply** to advance through the receptionist and agent examples, including a sample English booking update.
 
 ## Prototype limitations
 

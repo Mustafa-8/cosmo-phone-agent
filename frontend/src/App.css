@@ -275,6 +275,36 @@
   font-weight: 650;
 }
 
+.request-card input[type="text"] {
+  display: block;
+  width: 100%;
+  height: 39px;
+  margin-bottom: 15px;
+  border: 1px solid #e0e7e1;
+  border-radius: 8px;
+  outline: 0;
+  background: #fff;
+  padding: 0 11px;
+  color: #344239;
+  font-size: 11px;
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+
+.request-card input[type="text"]::placeholder {
+  color: #a0aaa2;
+}
+
+.request-card input[type="text"]:focus,
+.request-card textarea:focus {
+  border-color: #82a58b;
+  box-shadow: 0 0 0 3px #edf5ee;
+}
+
+.request-card input[type="text"]:disabled {
+  background: #f8faf8;
+  color: #79867d;
+}
+
 .request-card textarea {
   display: block;
   width: 100%;
@@ -293,11 +323,6 @@
 
 .request-card textarea::placeholder {
   color: #a0aaa2;
-}
-
-.request-card textarea:focus {
-  border-color: #82a58b;
-  box-shadow: 0 0 0 3px #edf5ee;
 }
 
 .request-card textarea:disabled {
@@ -626,7 +651,13 @@
   padding: 9px 10px;
 }
 
-.message--cosmo {
+.message--patient {
+  align-self: flex-end;
+  border-color: #e4e9ef;
+  background: #f6f8fb;
+}
+
+.message--agent-receptionist {
   align-self: flex-end;
   border-color: #e1ebe1;
   background: #f5f9f4;
@@ -634,6 +665,36 @@
 
 .message--receptionist {
   align-self: flex-start;
+}
+
+.message--agent-patient {
+  width: 100%;
+  max-width: 100%;
+  align-self: stretch;
+  border-color: #d4e6d7;
+  border-left: 4px solid #54845e;
+  background: linear-gradient(110deg, #f0f8f0, #f8fbf7);
+  padding: 11px 12px;
+  box-shadow: 0 2px 6px rgb(34 70 42 / 5%);
+}
+
+.message--agent-patient .message-heading strong {
+  color: #315b39;
+}
+
+.message--agent-patient .message-heading span {
+  border-radius: 10px;
+  background: #e2efe2;
+  padding: 4px 6px;
+  color: #4e7656;
+  font-size: 7px;
+  font-weight: 700;
+}
+
+.message--agent-patient .message-original {
+  color: #2f4d36;
+  font-size: 11px;
+  font-weight: 570;
 }
 
 .message-heading {

@@ -39,12 +39,14 @@ PORT="$PORT" "$PY" serve.py &
 SERVER=$!
 LOG="$(mktemp)"
 trap 'kill $SERVER ${TUNNEL:-} 2>/dev/null; rm -f "$LOG"' EXIT
+# Readiness: the website (/) is public, everything else needs the access code (demo_access.py),
+# so check the home page, not /voice/health (that one answers 401 without the code).
 for _ in $(seq 60); do
   kill -0 "$SERVER" 2>/dev/null || { echo "Server exited during startup (see errors above)"; exit 1; }
-  curl -fs "http://127.0.0.1:$PORT/voice/health" >/dev/null && break
+  curl -fs "http://127.0.0.1:$PORT/" >/dev/null && break
   sleep 0.5
 done
-curl -fs "http://127.0.0.1:$PORT/voice/health" >/dev/null && kill -0 "$SERVER" 2>/dev/null \
+curl -fs "http://127.0.0.1:$PORT/" >/dev/null && kill -0 "$SERVER" 2>/dev/null \
   || { echo "Server did not start"; exit 1; }
 
 echo "==> Opening the public tunnel"

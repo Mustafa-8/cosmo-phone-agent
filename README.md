@@ -62,6 +62,8 @@ Full plan and timeline: [phone-agent-plan.md](phone-agent-plan.md).
 
 Demo scenarios and rehearsal checks: [docs/dev4-demo-runbook.md](docs/dev4-demo-runbook.md).
 
+Hackathon pitch deck (8 slides, PowerPoint): [docs/pitch/COSMO-Hackathon-Pitch.pptx](docs/pitch/COSMO-Hackathon-Pitch.pptx).
+
 ## Setup
 Requires Python 3.10+.
 

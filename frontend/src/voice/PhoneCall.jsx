@@ -40,6 +40,23 @@ function wsUrl(path) {
   return url
 }
 
+// The online demo is protected by an access code (demo_access.py): POST it once, the browser gets a
+// cookie that unlocks the agent, the voice bridge and the call WebSocket.
+async function demoLogin(code) {
+  const res = await fetch('/demo-login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ code }),
+    credentials: 'same-origin',
+  })
+  if (res.status === 404) return true // local dev server without access control
+  return res.ok
+}
+
+function codeFromHash() {
+  return new URLSearchParams(window.location.hash.slice(1)).get('code') || ''
+}
+
 function mmss(secs) {
   return `${String(Math.floor(secs / 60)).padStart(2, '0')}:${String(secs % 60).padStart(2, '0')}`
 }
@@ -107,6 +124,19 @@ function Lobby({ onJoin }) {
   const params = new URLSearchParams(window.location.search)
   const [room, setRoom] = useState(params.get('room') || '')
   const [role, setRole] = useState(params.get('role') || '')
+  const [code, setCode] = useState(codeFromHash())
+  const [busy, setBusy] = useState(false)
+  const [loginError, setLoginError] = useState('')
+
+  async function continueToCall() {
+    setBusy(true)
+    setLoginError('')
+    const ok = await onJoin(room, role, code.trim())
+    if (!ok) {
+      setLoginError(role === 'patient' ? 'Wrong access code.' : 'Hibás hozzáférési kód.')
+      setBusy(false)
+    }
+  }
 
   if (!role) {
     return (
@@ -124,7 +154,11 @@ function Lobby({ onJoin }) {
       <label className="phone-label" htmlFor="room-code">{role === 'patient' ? 'Room code' : 'Szobakód'}</label>
       <input id="room-code" className="phone-code" value={room} maxLength={8} autoCapitalize="characters"
         onChange={(e) => setRoom(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))} placeholder="ABCD" />
-      <button className="phone-big" disabled={!room} onClick={() => onJoin(room, role)}>
+      <label className="phone-label" htmlFor="access-code">{role === 'patient' ? 'Access code' : 'Hozzáférési kód'}</label>
+      <input id="access-code" className="phone-input" value={code} autoComplete="off" autoCapitalize="none"
+        onChange={(e) => setCode(e.target.value)} placeholder={role === 'patient' ? 'From the person running the demo' : 'A demó kódja'} />
+      {loginError && <p className="phone-error" role="alert">⚠ {loginError}</p>}
+      <button className="phone-big" disabled={!room || !code.trim() || busy} onClick={continueToCall}>
         {role === 'patient' ? 'Continue' : 'Tovább'}
       </button>
       <button className="phone-link" onClick={() => setRole('')}>← back</button>
@@ -132,7 +166,7 @@ function Lobby({ onJoin }) {
   )
 }
 
-function CallScreen({ room, role, audioCtx }) {
+function CallScreen({ room, role, audioCtx, code }) {
   const t = TEXT[role]
   const [messages, setMessages] = useState([])
   const [state, setState] = useState({ started: false, thinking: false, roles: {} })
@@ -274,7 +308,8 @@ function CallScreen({ room, role, audioCtx }) {
 
   const otherRole = role === 'patient' ? 'receptionist' : 'patient'
   const otherHere = (state.roles?.[otherRole] ?? 0) > 0
-  const shareLink = `${window.location.origin}/?phone&role=receptionist&room=${room}`
+  // The code rides in the #fragment, which browsers never send to the server or the tunnel.
+  const shareLink = `${window.location.origin}/?phone&role=receptionist&room=${room}#code=${encodeURIComponent(code)}`
   const toMe = messages.filter((m) => m.speaker === 'agent' && m.to === role)
   const lastToMe = toMe[toMe.length - 1]
   const mine = messages.filter((m) => m.speaker === role)
@@ -389,11 +424,16 @@ function CallScreen({ room, role, audioCtx }) {
 export default function PhoneCall() {
   const [joined, setJoined] = useState(null)
   // Create the audio context inside a tap: phones only allow playback that starts from a tap.
-  function join(room, role) {
-    const audioCtx = new (window.AudioContext || window.webkitAudioContext)()
+  async function join(room, role, code) {
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)() // still inside the tap
     audioCtx.resume()
-    setJoined({ room, role, audioCtx })
+    if (!(await demoLogin(code))) {
+      audioCtx.close()
+      return false
+    }
+    setJoined({ room, role, audioCtx, code })
+    return true
   }
   if (!joined) return <Lobby onJoin={join} />
-  return <CallScreen room={joined.room} role={joined.role} audioCtx={joined.audioCtx} />
+  return <CallScreen room={joined.room} role={joined.role} audioCtx={joined.audioCtx} code={joined.code} />
 }

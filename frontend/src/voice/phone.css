@@ -98,3 +98,5 @@
 .phone-call .phone-messages { flex: 0 1 40%; border-top: 1px solid color-mix(in srgb, var(--ph-muted) 30%, transparent); }
 .call-decide { display: flex; gap: 12px; flex-basis: 100%; justify-content: center; flex-wrap: wrap; }
 .call-decide .call-btn { min-width: 150px; justify-content: center; font-size: 1.15rem; padding: 20px 24px; }
+.phone-input { font: inherit; font-size: 1.1rem; padding: 12px; border-radius: 12px; border: 2px solid var(--ph-muted);
+  background: var(--ph-card); color: var(--ph-text); min-width: 0; }

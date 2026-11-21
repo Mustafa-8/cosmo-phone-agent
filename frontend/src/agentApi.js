@@ -6,13 +6,30 @@ const APP_NAME = 'phone_agent'
 const LANGUAGE_OF_LISTENER = { patient: 'en', receptionist: 'hu' }
 const LANGUAGE_NAME = { en: 'English', hu: 'Hungarian' }
 
-/** Create one ADK session per call. Throws on failure. */
+/** Thrown when the online demo server asks for its access code (HTTP 401). */
+export class AccessCodeRequired extends Error {}
+
+/**
+ * Send the demo access code once (online demo only, see demo_access.py). The server answers
+ * with an HttpOnly cookie that the browser then sends automatically. Returns true if accepted.
+ */
+export async function submitAccessCode(code) {
+  const res = await fetch(`${AGENT_URL}/demo-login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ code }),
+  })
+  return res.ok
+}
+
+/** Create one ADK session per call. Throws on failure; AccessCodeRequired if the code is needed. */
 export async function createSession(userId, sessionId) {
   const res = await fetch(`${AGENT_URL}/apps/${APP_NAME}/users/${userId}/sessions/${sessionId}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: '{}',
   })
+  if (res.status === 401) throw new AccessCodeRequired('Enter the demo access code to start a live call.')
   if (!res.ok) throw new Error(`Could not start the call (HTTP ${res.status}). Is adk api_server running?`)
 }
 
@@ -37,6 +54,9 @@ export async function sendToAgent(userId, sessionId, speaker, text) {
     })
   } catch {
     return [{ type: 'error', message: 'Cannot reach the agent. Is adk api_server running with --allow_origins?' }]
+  }
+  if (res.status === 401) {
+    return [{ type: 'error', message: 'The demo access code is missing or expired. End the call and start again.' }]
   }
   if (!res.ok) {
     const hint = res.status === 500 ? ' (often the Gemini free-tier limit; wait a minute and try again)' : ''

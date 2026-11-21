@@ -9,7 +9,10 @@ const VOICE_URL = import.meta.env.VITE_VOICE_URL ?? 'http://localhost:8001'
  * onError(message). Only committed text should ever be sent to the agent.
  */
 export function openStt(language, { onPartial, onCommitted, onError, onOpen }) {
-  const ws = new WebSocket(`${VOICE_URL.replace(/^http/, 'ws')}/ws/stt?language=${language}`)
+  // VOICE_URL may be absolute (dev: http://localhost:8001) or a path on this site (online: /voice).
+  const wsUrl = new URL(`${VOICE_URL}/ws/stt?language=${language}`, window.location.href)
+  wsUrl.protocol = wsUrl.protocol === 'https:' ? 'wss:' : 'ws:'
+  const ws = new WebSocket(wsUrl)
   ws.binaryType = 'arraybuffer'
   ws.onopen = () => onOpen?.()
   ws.onmessage = (event) => {

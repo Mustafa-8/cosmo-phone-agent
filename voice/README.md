@@ -27,6 +27,23 @@ Then play `out_hu.mp3`. Each API falls back to mock mode when its key is missing
 - Gemini: `gemini-2.5-flash` returns 404 for new users. `gemini-3.5-flash-lite` translated medical sentences in about 1 s and kept doses, dates and drug names exact. `gemini-3.5-flash` and `gemini-3.8-flash` often took over 20 s because they think by default.
 - Scribe partial transcripts can be very wrong mid-sentence; the committed transcript was close to the original.
 
+## Run the full voice demo (3 terminals, from the repo root)
+```bash
+pip install -r requirements.txt
+cp .env.example .env                                   # ELEVENLABS_API_KEY + GOOGLE_API_KEY
+adk api_server --allow_origins http://localhost:5173   # agent, port 8000
+uvicorn voice.server:app --port 8001                   # voice bridge, port 8001 (keys stay here)
+cd frontend && npm install && npm run dev              # website, port 5173 (Vite 8 needs Node 20.19+ or 22.12+)
+```
+In the website choose **Live agent**, start a call, then press **Speak as receptionist** and talk Hungarian.
+- Finished sentences (committed transcripts) go to the agent exactly as heard; the grey "Hearing: ..." line is only the live preview.
+- Every COSMO message is spoken by ElevenLabs (Hungarian voice Andris to the clinic, English to the student), in order.
+- Hungarian lines get an English translation underneath (Gemini, display only; the agent always gets the original Hungarian).
+- Half duplex: the mic is ignored while COSMO speaks, so it never hears itself even without headphones. **Sound off** stops playback; **Mute** stops sending the mic.
+- If the voice server is down, typing receptionist replies still works and replies are read by the browser's own voice.
+
+Bridge endpoints (`voice/server.py`): `GET /health`, `WS /ws/stt?language=hu` (binary 16 kHz PCM16 in, `{"type": "partial"|"committed"|"error", "text"}` out, send `{"type":"commit"}` to end a sentence), `POST /tts {text, language}` → MP3 (204 = use browser speech), `POST /translate {text, source, target}`.
+
 ## Integration with the agent (`phone_agent/contract.py`)
 `voice/events.py` produces and consumes exactly the event format in `contract.py`.
 
@@ -56,5 +73,5 @@ Browser side: copy `web/pcm-worklet.js` into `frontend/public/` (it is loaded fr
 
 ## Tests
 ```bash
-python -m pytest voice/tests    # mock mode, no keys needed
+python -m pytest voice/tests    # mock mode, no keys needed (includes the bridge endpoints)
 ```

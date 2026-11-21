@@ -92,7 +92,7 @@ for t in contract clinics time_window slots calendar_event; do python -m tests.t
 
 ## Free-tier limits
 - `gemini-3.5-flash-lite` on the free tier allows **15 requests per minute per Google project**. One booking call uses about 8–10 requests, because every tool step is a request.
-- Use API keys from **different Google projects** for the agent and for the voice layer's translation, so they don't share one quota.
+- Use API keys from **different Google projects** for the agent (`GOOGLE_API_KEY`) and for the voice layer's translation (`GEMINI_API_KEY`), so they don't share one quota. The voice layer translates every Hungarian line, so one call turn uses about 5 requests when both share a key.
 - During rehearsals, wait about a minute between full test calls. A `429 RESOURCE_EXHAUSTED` in the server log means the quota ran out.
 
 ## Frontend

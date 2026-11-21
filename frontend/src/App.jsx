@@ -1,10 +1,25 @@
 import { useRef, useState } from 'react'
 import './App.css'
-import { createSession, sendToAgent } from './agentApi'
+import { AccessCodeRequired, createSession, sendToAgent, submitAccessCode } from './agentApi'
 import { PlaybackQueue, startMic } from './voice/audio'
 import { openStt, speakItem, translateText } from './voice/voiceApi'
 
-const USER_ID = 'student-web'
+// A random user id per browser, so visitors of the online demo cannot list or read each
+// other's conversations (ADK sessions are grouped by user id).
+function browserUserId() {
+  const make = () => `student-${crypto.randomUUID()}`
+  try {
+    const saved = localStorage.getItem('cosmo-user-id')
+    if (saved) return saved
+    const id = make()
+    localStorage.setItem('cosmo-user-id', id)
+    return id
+  } catch {
+    return make() // storage blocked: still random, just not remembered
+  }
+}
+
+const USER_ID = browserUserId()
 
 const languages = [
   { code: 'en', name: 'English' },
@@ -100,6 +115,9 @@ function App() {
   const [mode, setMode] = useState('live') // 'live' = real ADK agent, 'sample' = scripted demo data
   const [isThinking, setIsThinking] = useState(false)
   const [receptionistText, setReceptionistText] = useState('')
+  const [needsCode, setNeedsCode] = useState(false) // online demo asked for its access code
+  const [accessCode, setAccessCode] = useState('')
+  const [codeError, setCodeError] = useState('')
   const sessionRef = useRef(null)
   const nextId = useRef(100)
 
@@ -210,10 +228,31 @@ function App() {
     try {
       await createSession(USER_ID, sessionRef.current)
     } catch (error) {
+      if (error instanceof AccessCodeRequired) {
+        // Online demo: go back to the form and ask for the code before calling.
+        setCallState('ready')
+        setMessages([])
+        setNeedsCode(true)
+        return
+      }
       appendMessages([{ type: 'error', message: error.message }])
       return
     }
     await talkToAgent('patient', `My name is ${name}. ${text}`)
+  }
+
+  async function unlockAndStart(event) {
+    event.preventDefault()
+    const code = accessCode.trim()
+    if (!code) return
+    setCodeError('')
+    if (!(await submitAccessCode(code))) {
+      setCodeError('That code is not right. Ask the COSMO team for the demo code.')
+      return
+    }
+    setAccessCode('')
+    setNeedsCode(false)
+    startLiveCall()
   }
 
   async function sendReceptionistLine(event) {
@@ -366,7 +405,7 @@ function App() {
                 </label>
               </div>
 
-              {!isCallActive && (
+              {!isCallActive && !needsCode && (
                 <button className="primary-button" type="submit" disabled={!fullName.trim() || !request.trim()}>
                   <Icon name="phone" size={17} />
                   {callState === 'ended' ? 'Start another demo call' : 'Start demo call'}
@@ -374,6 +413,24 @@ function App() {
                 </button>
               )}
             </form>
+
+            {needsCode && (
+              <form className="access-code-form" onSubmit={unlockAndStart}>
+                <label className="field-label" htmlFor="access-code">Demo access code</label>
+                <div className="receptionist-row">
+                  <input
+                    id="access-code"
+                    type="password"
+                    autoComplete="off"
+                    value={accessCode}
+                    onChange={(event) => setAccessCode(event.target.value)}
+                    placeholder="Ask the COSMO team for the code"
+                  />
+                  <button type="submit" disabled={!accessCode.trim()}>Unlock</button>
+                </div>
+                {codeError && <p className="message-error" role="alert">⚠ {codeError}</p>}
+              </form>
+            )}
 
             <div className="booking-note"><Icon name="calendar" size={16} /><span><strong>What happens next?</strong> COSMO will find a clinic, call in Hungarian, and show you the conversation.</span></div>
           </section>

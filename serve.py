@@ -12,6 +12,7 @@ Same origin for everything, so no CORS setup, and one HTTPS tunnel covers the mi
 `./run_online.sh` builds, starts this server and opens a public Cloudflare tunnel.
 """
 import os
+import secrets
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -19,6 +20,7 @@ import uvicorn
 from fastapi.staticfiles import StaticFiles
 from google.adk.cli.fast_api import get_fast_api_app
 
+from demo_access import DemoAccessMiddleware
 from voice import server as voice_server  # also loads .env (keys stay on this machine)
 
 ROOT = Path(__file__).resolve().parent
@@ -50,5 +52,12 @@ if not DIST.exists():
     raise SystemExit("frontend/dist is missing: build it first (see the top of serve.py or run ./run_online.sh)")
 app.mount("/", StaticFiles(directory=DIST, html=True), name="website")  # last, so API routes win
 
+# Access code: deny by default. Only the website's own files are public; the agent, the voice
+# bridge, the API docs and every WebSocket need the code (see demo_access.py). If no code is set,
+# make a random one, so the server is never online without protection.
+ACCESS_CODE = os.getenv("DEMO_ACCESS_CODE", "").strip() or secrets.token_urlsafe(6)
+protected_app = DemoAccessMiddleware(app, code=ACCESS_CODE, static_dir=DIST)
+
 if __name__ == "__main__":
-    uvicorn.run(app, host="127.0.0.1", port=PORT)
+    print(f"\n  Demo access code: {ACCESS_CODE}\n  (share it only with people who should use the demo)\n", flush=True)
+    uvicorn.run(protected_app, host="127.0.0.1", port=PORT)

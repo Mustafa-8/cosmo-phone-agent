@@ -6,12 +6,21 @@
 #
 # Needs: .env with ELEVENLABS_API_KEY and GOOGLE_API_KEY, .venv with requirements.txt,
 # Node 20.19+ and cloudflared on PATH. The link changes every time you start it.
-# Anyone with the link can use the demo (and your API credits) while this runs.
+# The site needs an access code (demo_access.py): set DEMO_ACCESS_CODE in .env, or a random
+# one is made and printed below. Share the link and the code only with people who should use it.
 set -euo pipefail
 cd "$(dirname "$0")"
 export PATH="$HOME/.local/node/bin:$HOME/.local/bin:$PATH"
 PORT="${PORT:-8080}"
 PY="${PYTHON:-.venv/bin/python}"
+# Read DEMO_ACCESS_CODE from .env if present; otherwise make a random one for this run.
+if [ -z "${DEMO_ACCESS_CODE:-}" ] && [ -f .env ]; then
+  DEMO_ACCESS_CODE="$(grep -E '^DEMO_ACCESS_CODE=' .env | tail -1 | cut -d= -f2- || true)"
+fi
+if [ -z "${DEMO_ACCESS_CODE:-}" ]; then
+  DEMO_ACCESS_CODE="$("$PY" -c 'import secrets; print(secrets.token_urlsafe(6))')"
+fi
+export DEMO_ACCESS_CODE
 
 [ -f .env ] || { echo "Missing .env (copy .env.example and add the keys)"; exit 1; }
 command -v cloudflared >/dev/null || { echo "cloudflared not found"; exit 1; }
@@ -51,6 +60,7 @@ done
 
 echo
 echo "  COSMO is online:  $URL"
+echo "  Access code:      $DEMO_ACCESS_CODE"
 echo "  (local: http://localhost:$PORT)   Ctrl+C to stop"
 echo
 wait $SERVER

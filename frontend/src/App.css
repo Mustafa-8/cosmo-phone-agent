@@ -1075,3 +1075,10 @@ textarea:focus-visible {
   min-width: 0;
   overflow-wrap: anywhere;
 }
+
+/* Online demo access code */
+.access-code-form {
+  display: grid;
+  gap: 6px;
+  margin-top: 12px;
+}

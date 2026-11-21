@@ -101,6 +101,13 @@ cd frontend && npm run lint && npm run build
 
 The voice layer's tests use `pytest`, which is not in `requirements.txt`. Install it once with `pip install pytest`, then run `python -m pytest voice/tests`.
 
+## Online demo (public link)
+`./run_online.sh` serves the agent, the voice bridge and the website on one port (`serve.py`) and opens a public Cloudflare quick tunnel (needs `cloudflared`). The link works only while your laptop runs it and changes on every start.
+
+- **Access code:** only the website's files are public. The agent, the voice bridge, the API docs and conversations need the demo code (`demo_access.py`, HttpOnly cookie). Set `DEMO_ACCESS_CODE` in `.env`, or a random code is printed next to the link. Share the link and the code only with people who should use the demo, because they use our Gemini and ElevenLabs credits.
+- Each browser gets its own random user id, so visitors cannot read each other's conversations.
+- For a demo on your own laptop, `localhost` is enough and safer than a public link.
+
 ## Free-tier limits
 - `gemini-3.5-flash-lite` on the free tier allows **15 requests per minute per Google project**. One booking call uses about 8–10 requests, because every tool step is a request.
 - Use API keys from **different Google projects** for the agent (`GOOGLE_API_KEY`) and for the voice layer's translation (`GEMINI_API_KEY`), so they don't share one quota. The voice layer translates every Hungarian line, so one call turn uses about 5 requests when both share a key.

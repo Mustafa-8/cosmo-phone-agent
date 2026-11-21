@@ -10,7 +10,7 @@ An agent that books a clinic appointment for an international student by talking
 1. **The model decides, Python computes.** Gemini understands the request and leads the conversation. Dates, slots and files are computed by plain Python tools, so the model never invents a time.
 2. **One agent with good tools.** Every tool has type hints, a precise docstring, and returns a `dict` with a `status` field (`"ok"`, `"error"`, ...). Tools never crash the agent.
 3. **The instruction and `tools=[...]` must match.** When a tool is added or renamed, update both together.
-4. **The agent is text in, text out.** Voice (Dev 1) and frontend (Dev 3) wrap around it. If voice fails during the demo, the text flow still works.
+4. **The agent is text in, text out.** Voice (Dev 2) and frontend (Dev 3) wrap around it. If voice fails during the demo, the text flow still works.
 5. **Transparency.** The agent's first Hungarian sentence says it is an AI assistant calling on the student's behalf.
 
 ## Agent behaviour
@@ -20,7 +20,7 @@ An agent that books a clinic appointment for an international student by talking
 4. Confirm → create the calendar event → English summary to the student.
 5. If the receptionist refuses to talk to an AI → hand off to the student and act as interpreter.
 
-## Agent tools (Dev 2)
+## Agent tools (Dev 1)
 | Tool | The model decides | Python computes |
 |---|---|---|
 | `find_clinics(specialty, district)` | which specialty | filter `data/clinics.json` |
@@ -37,19 +37,19 @@ cosmo-phone-agent/          <- run adk web / adk api_server here
     agent.py                root_agent, instruction, tools=[...]
     tools/                  one file per area, to avoid merge conflicts
     data/clinics.json       3–5 mock Budapest clinics
-  voice/                    Dev 1
+  voice/                    Dev 2
   frontend/                 Dev 3
 ```
 
 ## Roles
 | Dev | Member | Focus | First deliverable |
 |---|---|---|---|
-| 1 | Noureldeen Elshawaf | Voice: Scribe STT, mic streaming, TTS, playback and interruption | A Hungarian sentence spoken by a standalone script |
-| 2 | Mustafa Ali Mohsin Albusultan (Leader) | Agent core, tools, `adk api_server`, error handling, merging | Agent replies in Hungarian in `adk web` |
+| 1 | Mustafa Ali Mohsin Albusultan (Leader) | Agent core, tools, `adk api_server`, error handling, merging | Agent replies in Hungarian in `adk web` |
+| 2 | Noureldeen Elshawaf | Voice: Scribe STT, mic streaming, TTS, playback and interruption | A Hungarian sentence spoken by a standalone script |
 | 3 | Redha Ali Hussein Hasan Al-Ashwal | React UI: transcript, call controls, language selection | UI that sends text to the API and shows the reply |
 | 4 | Moises Raul Raunde | Integration, Hungarian tests, demo scenario, presentation | Written receptionist script (normal and refusal case) |
 
-**Contract between Dev 2 and Dev 3:** the frontend calls `adk api_server` over HTTP. Agree on the request and response format at the start, and test it early.
+**Contract between Dev 1 and Dev 3:** the frontend calls `adk api_server` over HTTP. Agree on the request and response format at the start, and test it early.
 
 ## Workflow
 - Each member works on their own branch (`<name>/<feature>`).

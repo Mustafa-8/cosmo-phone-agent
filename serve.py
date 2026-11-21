@@ -33,7 +33,18 @@ async def lifespan(_app):
     yield
 
 
-app = get_fast_api_app(agents_dir=str(ROOT), web=False, host="127.0.0.1", port=PORT, lifespan=lifespan)
+# ADK rejects browser requests (403) whose Origin is not allowed, even same-origin ones, so list the
+# public tunnel host here. Override with ALLOW_ORIGINS="https://a.example,regex:https://.*\.example".
+DEFAULT_ORIGINS = [
+    r"regex:https://[a-z0-9-]+\.trycloudflare\.com",
+    f"http://localhost:{PORT}",
+    f"http://127.0.0.1:{PORT}",
+    "http://localhost:5173",
+]
+ALLOW_ORIGINS = [o.strip() for o in os.getenv("ALLOW_ORIGINS", "").split(",") if o.strip()] or DEFAULT_ORIGINS
+
+app = get_fast_api_app(agents_dir=str(ROOT), web=False, host="127.0.0.1", port=PORT, lifespan=lifespan,
+                       allow_origins=ALLOW_ORIGINS)
 app.mount("/voice", voice_server.app)
 if not DIST.exists():
     raise SystemExit("frontend/dist is missing: build it first (see the top of serve.py or run ./run_online.sh)")

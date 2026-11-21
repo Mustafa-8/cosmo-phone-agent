@@ -6,7 +6,7 @@ only in its own language.
 
 ![The whole call, both phones side by side](media/demo.gif)
 
-▶ [Video (MP4)](media/demo.mp4)
+▶ [Download the video (MP4)](media/demo.mp4?raw=true). GitHub does not play videos stored in a repository, so the GIF above is the same walkthrough playing inline.
 
 ## QR codes (live demo link)
 

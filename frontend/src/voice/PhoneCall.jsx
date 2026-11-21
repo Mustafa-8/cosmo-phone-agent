@@ -25,7 +25,7 @@ const TEXT = {
     waitOther: 'Várakozás a páciensre…', mute: 'Némítás', unmute: 'Hang be', hangup: 'Letenni',
     transcript: 'Átirat', ended: 'A hívás véget ért', again: 'Újra fogadás', newCall: 'Új hívás',
     confirm: '✓ Megerősítem', deny: '✕ Nem szabad', joinLine: '🎤 Beszélni szeretnék', leaveLine: 'Mikrofon ki',
-    decide: 'Erősítse meg vagy utasítsa el az időpontot:', waiting: 'Várjuk COSMO kérését…', onLine: 'Ön a vonalban van — beszéljen',
+    decide: 'Erősítse meg vagy utasítsa el az időpontot:', waiting: 'Várjuk COSMO kérését…', withPatient: 'COSMO a pácienssel beszél, mindjárt kapcsolja Önt…', onLine: 'Ön a vonalban van — beszéljen',
   },
 }
 
@@ -279,6 +279,7 @@ function CallScreen({ room, role, audioCtx }) {
   const lastToMe = toMe[toMe.length - 1]
   const mine = messages.filter((m) => m.speaker === role)
   const lastMine = mine[mine.length - 1]
+  const patientActive = messages.some((m) => m.speaker === 'patient') || state.thinking
   const lastHuman = messages.filter((m) => m.speaker === 'receptionist').pop()
   const awaitingDecision = role === 'receptionist' && phase === 'live' && !state.thinking && lastToMe
     && lastToMe.text.includes('?') && (!lastHuman || lastHuman.id < lastToMe.id)
@@ -287,7 +288,7 @@ function CallScreen({ room, role, audioCtx }) {
     : state.thinking ? t.thinking
       : heard ? `${t.youSpeak}: ${heard}`
         : muted ? t.unmute
-          : role === 'receptionist' ? (micOn ? t.onLine : awaitingDecision ? t.decide : t.waiting)
+          : role === 'receptionist' ? (micOn ? t.onLine : awaitingDecision ? t.decide : patientActive && !lastToMe ? t.withPatient : t.waiting)
             : t.listening
 
   return (
@@ -311,6 +312,7 @@ function CallScreen({ room, role, audioCtx }) {
             {role === 'patient' && !otherHere && (
               <p className="phone-share">Clinic phone: open <b>{shareLink}</b> or code <b>{room}</b></p>
             )}
+            {role === 'receptionist' && patientActive && !ringing && <p className="call-status">{t.withPatient}</p>}
             <p>{t.hint}</p>
             <p className="call-example">{t.example}</p>
           </div>

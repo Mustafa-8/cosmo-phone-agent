@@ -35,6 +35,9 @@ log = logging.getLogger("cosmo.call")
 AGENT_URL = os.getenv("AGENT_URL", f"http://127.0.0.1:{os.getenv('PORT', '8080')}")
 USER_ID = "two-phone-demo"
 LANG = {"patient": "en", "receptionist": "hu"}
+# Hands-free speech arrives in pieces (Scribe ends a sentence after a short pause). Wait this long
+# after each piece; if the person keeps talking, the pieces are joined into one message for COSMO.
+HOLD_SECS = float(os.getenv("CALL_HOLD_SECS", "1.2"))
 # The reception phone confirms or denies with buttons; COSMO receives these exact sentences.
 DECISIONS = {
     "confirm": "Igen, megerősítem, az időpont rögzítve.",
@@ -54,6 +57,24 @@ class Room:
         self.thinking = False
         self.playing: set[WebSocket] = set()
         self.next_id = 1
+        self.buffers: dict[str, list[str]] = {}
+        self.timers: dict[str, asyncio.Task] = {}
+
+    def queue_speech(self, role: str, text: str) -> None:
+        """Collect a finished sentence; send everything to COSMO once the speaker pauses for HOLD_SECS."""
+        self.buffers.setdefault(role, []).append(text)
+        if (t := self.timers.get(role)) and not t.done():
+            t.cancel()
+
+        async def flush():
+            await asyncio.sleep(HOLD_SECS)
+            joined = " ".join(self.buffers.pop(role, []))
+            self.timers.pop(role, None)
+            if joined:
+                log.info("[%s] %s -> COSMO: %s", self.code, role, joined)
+                await self.agent_turn(role, joined)
+
+        self.timers[role] = asyncio.create_task(flush())
 
     def state(self) -> dict:
         roles = {r: sum(1 for v in self.clients.values() if v == r) for r in LANG}
@@ -108,6 +129,7 @@ class Room:
                         await self.broadcast({"type": "error", "message": f"Agent error: HTTP {r.status_code}{hint}"})
                         return
                     for ev in contract.run_response_to_events(r.json(), self.session_id):
+                        log.info("[%s] COSMO -> %s: %s", self.code, ev.get("to"), ev.get("original_text") or ev.get("message"))
                         if ev["type"] == "error":
                             await self.broadcast({"type": "error", "message": ev["message"]})
                         else:
@@ -132,6 +154,7 @@ async def call_ws(ws: WebSocket, room: str, role: str) -> None:
     await ws.accept()
     r = rooms.setdefault(code, Room(code))
     r.clients[ws] = role
+    log.info("[%s] %s phone joined", code, role)
     for msg in r.history:
         await r.send(ws, msg)
     await r.broadcast(r.state())
@@ -156,6 +179,7 @@ async def call_ws(ws: WebSocket, room: str, role: str) -> None:
                 await r.broadcast(r.state())
             elif kind == "decision" and role == "receptionist" and data.get("value") in DECISIONS:
                 text = DECISIONS[data["value"]]
+                log.info("[%s] reception pressed %s", r.code, data["value"])
                 msg = await r.add_message(role, text, LANG[role])
                 msg["decision"] = data["value"]
                 await r.broadcast({"type": "decision", "id": msg["id"], "value": data["value"]})
@@ -163,8 +187,9 @@ async def call_ws(ws: WebSocket, room: str, role: str) -> None:
             elif kind == "say":
                 text = (data.get("text") or "").strip()
                 if text:
+                    log.info("[%s] heard %s: %s", r.code, role, text)
                     await r.add_message(role, text, LANG[role])
-                    asyncio.create_task(r.agent_turn(role, text))
+                    r.queue_speech(role, text)
             elif kind == "playing":
                 if data.get("on"):
                     r.playing.add(ws)

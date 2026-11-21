@@ -1,6 +1,8 @@
 import os
 
 from google.adk.agents import Agent
+from google.adk.models.google_llm import Gemini
+from google.genai import types
 
 from .tools.calendar_event import create_calendar_event
 from .tools.clinics import find_clinics
@@ -114,7 +116,15 @@ root_agent = Agent(
     name="cosmo_phone_agent",
     # gemini-3.1-flash-lite: first turn 2.4-5 s in tests; gemini-3.5-flash-lite varied 6-22 s
     # (same two model steps, same quality). Override with AGENT_MODEL.
-    model=os.getenv("AGENT_MODEL", "gemini-3.1-flash-lite"),
+    # Gemini occasionally takes 15-40 s on one request; give up after AGENT_TIMEOUT_MS and retry
+    # (3 attempts in total) instead of leaving both phones waiting.
+    model=Gemini(
+        model=os.getenv("AGENT_MODEL", "gemini-3.1-flash-lite"),
+        retry_options=types.HttpRetryOptions(attempts=3, initial_delay=0.2, max_delay=1.0),
+    ),
+    generate_content_config=types.GenerateContentConfig(
+        http_options=types.HttpOptions(timeout=int(os.getenv("AGENT_TIMEOUT_MS", "10000"))),
+    ),
     description="Books clinic appointments by phone in Hungarian for international students.",
     instruction=INSTRUCTION,
     tools=[plan_appointment, find_clinics, resolve_time_window, check_slot, create_calendar_event, say],

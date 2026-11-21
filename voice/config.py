@@ -23,9 +23,11 @@ def _float(name: str, default: float) -> float:
 @dataclass
 class Settings:
     elevenlabs_api_key: str = field(default_factory=lambda: os.getenv("ELEVENLABS_API_KEY", ""))
-    # The agent uses GOOGLE_API_KEY; GEMINI_API_KEY is accepted too.
+    # Translation prefers its own GEMINI_API_KEY (from a different Google project than the
+    # agent's GOOGLE_API_KEY), so the two don't share one 15-requests-per-minute free quota.
+    # Falls back to GOOGLE_API_KEY when no separate key is set.
     gemini_api_key: str = field(
-        default_factory=lambda: os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY", "")
+        default_factory=lambda: os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY", "")
     )
 
     # "auto" means: real if the key exists, mock otherwise. Force with "real" / "mock".

@@ -18,6 +18,22 @@ def _normalize_district(district: str) -> str:
     return d if d in ROMAN else ""
 
 
+def get_clinic(clinic_id: str) -> dict:
+    """Return {"status": "ok", "clinic": {...}} for one clinic id, or a status "error" dict.
+
+    Helper for other tools (not given to the agent).
+    """
+    try:
+        clinics = json.loads(CLINICS_FILE.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        return {"status": "error", "error_message": f"Could not read clinic data: {exc}"}
+    for clinic in clinics:
+        if clinic["id"] == clinic_id:
+            return {"status": "ok", "clinic": clinic}
+    return {"status": "error",
+            "error_message": f"Unknown clinic_id {clinic_id!r}. Use an id returned by find_clinics."}
+
+
 def find_clinics(specialty: str, district: str = "") -> dict:
     """Find clinics in Budapest for one medical specialty.
 

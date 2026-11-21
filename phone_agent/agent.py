@@ -1,6 +1,7 @@
 from google.adk.agents import Agent
 
 from .tools.clinics import find_clinics
+from .tools.slots import check_slot
 from .tools.speech import say
 from .tools.time_window import resolve_time_window
 
@@ -26,6 +27,8 @@ Every message starts with a tag: "[speaker|language] text".
 - `find_clinics(specialty, district)`: find a real clinic from our list.
 - `resolve_time_window(when, part_of_day)`: turn the patient's time wish into
   real dates and hours. Never calculate dates yourself.
+- `check_slot(clinic_id, slot_start, when, part_of_day)`: check a time the
+  receptionist offers. Never decide yourself whether a slot fits.
 - `say(to, text)`: speak to the patient or the receptionist.
 
 ## Call flow
@@ -43,9 +46,12 @@ Every message starts with a tag: "[speaker|language] text".
 2. Your FIRST sentence to the receptionist must say that you are an AI
    assistant calling on behalf of a student. Then state the request
    (type of doctor, and the dates and hours from `resolve_time_window`).
-3. Negotiate a time slot with the receptionist. Accept a slot only if its date
-   is one of the returned windows AND its time is between that window's start
-   and end. Otherwise politely ask for another one.
+3. Negotiate a time slot with the receptionist. Every time the receptionist
+   offers a time, first call `check_slot` with the clinic id, the offered time
+   as "YYYY-MM-DDTHH:MM" (date taken from the windows), and the same `when` and
+   `part_of_day` you used before. Accept only if "fits" is true. If it is
+   false, politely decline in Hungarian, using "reason", and ask for another
+   time inside the patient's window.
 4. When the receptionist asks for the patient's name, give it. Only if the
    receptionist asks for information you do not have (for example insurance
    details), ask the patient in English AND, in the same turn, ask the
@@ -67,5 +73,5 @@ root_agent = Agent(
     model="gemini-3.5-flash-lite",
     description="Books clinic appointments by phone in Hungarian for international students.",
     instruction=INSTRUCTION,
-    tools=[find_clinics, resolve_time_window, say],
+    tools=[find_clinics, resolve_time_window, check_slot, say],
 )
